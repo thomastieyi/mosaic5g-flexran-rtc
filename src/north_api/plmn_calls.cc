@@ -56,12 +56,14 @@ void flexran::north_api::plmn_calls::add_mme(
   try {
     plmn_app->add_mme(bs, policy);
   } catch (const std::invalid_argument& e) {
+    LOG4CXX_ERROR(flog::app, "encountered error while processing " << __func__
+          << "(): " << e.what());
     response.send(Pistache::Http::Code::Bad_Request,
         "{ \"error:\": \"" + std::string(e.what()) + "\"}\n", MIME(Application, Json));
     return;
   }
 
-  response.send(Pistache::Http::Code::Ok, "Ok\n");
+  response.send(Pistache::Http::Code::Ok, "{ \"status\": \"Ok\" }\n");
 }
 
 void flexran::north_api::plmn_calls::remove_mme(
@@ -80,10 +82,12 @@ void flexran::north_api::plmn_calls::remove_mme(
   try {
     plmn_app->remove_mme(bs, policy);
   } catch (const std::invalid_argument& e) {
+    LOG4CXX_ERROR(flog::app, "encountered error while processing " << __func__
+          << "(): " << e.what());
     response.send(Pistache::Http::Code::Bad_Request,
         "{ \"error:\": \"" + std::string(e.what()) + "\"}\n", MIME(Application, Json));
     return;
   }
 
-  response.send(Pistache::Http::Code::Ok, "Ok\n");
+  response.send(Pistache::Http::Code::Ok, "{ \"status\": \"Ok\" }\n");
 }
