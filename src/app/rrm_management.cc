@@ -89,51 +89,7 @@ int flexran::app::management::rrm_management::instantiate_vnetwork(
     return -1;
   }
 
-  std::map<int, int> bs_pct;
-  std::map<int, int> bs_first_rb;
-  for (uint64_t bs_id : rib_.get_available_base_stations()) {
-    std::shared_ptr<flexran::rib::enb_rib_info> bs = rib_.get_bs(bs_id);
-    /* calculate the necessary percentage of RBs */
-    const int bw = bs->get_enb_config().cell_config(0).dl_bandwidth();
-    const int pct = calculate_rbs_percentage(bw, bps);
-    if (pct <= 0) {
-      error_reason = "cannot calculate slice percentage for BS " + std::to_string(bs_id);
-      return -1;
-    }
-    /* check that slice 0 percentage > new slice percentage and has at least 3% */
-    const int sldl0pct = bs->get_enb_config().cell_config(0).slice_config().dl(0).percentage();
-    const int slul0pct = bs->get_enb_config().cell_config(0).slice_config().ul(0).percentage();
-    if (sldl0pct <= pct || slul0pct <= pct || (sldl0pct - pct) < 3 || (slul0pct - pct) < 3) {
-      error_reason = "BS " + std::to_string(bs_id) + " cannot provide the requested bitrate";
-      return -1;
-    }
-    /* calculate first_rb for UL, which is at end of slice 0 */
-    const int first_rb0 = bs->get_enb_config().cell_config(0).slice_config().ul(0).first_rb();
-    const int new_first_rb = first_rb0 + (slul0pct - pct) * bw / 100;
-    bs_pct.emplace(bs_id, pct);
-    bs_first_rb.emplace(bs_id, new_first_rb);
-  }
-
-  /* all BS can create such a slice, send a corresponding command to all */
-  for (uint64_t bs_id : rib_.get_available_base_stations()) {
-    std::shared_ptr<flexran::rib::enb_rib_info> bs = rib_.get_bs(bs_id);
-    const int sldl0pct = bs->get_enb_config().cell_config(0).slice_config().dl(0).percentage();
-    const int slul0pct = bs->get_enb_config().cell_config(0).slice_config().ul(0).percentage();
-    const std::string newsldl0pcts = std::to_string(sldl0pct - bs_pct.at(bs_id));
-    const std::string newslul0pcts = std::to_string(slul0pct - bs_pct.at(bs_id));
-    const std::string newpcts = std::to_string(bs_pct.at(bs_id));
-    const std::string newfrbs = std::to_string(bs_first_rb.at(bs_id));
-    /* This could be optimized by directly creating the protobuf structure */
-    const std::string p = "{\"intrasliceShareActive\":false,"
-          "\"intersliceShareActive\":false,"
-          "\"dl\":[{id:0,percentage:" + newsldl0pcts
-        + "},{id:" + std::to_string(slice_id) + ",\"percentage\":" + newpcts
-        + "}],\"ul\":[{id:0,percentage:" + newslul0pcts + "},{id:" + std::to_string(slice_id)
-        + ",\"percentage\":" + newpcts + ",\"first_rb\":" + newfrbs + "}]}";
-    if (!apply_slice_config_policy(bs_id, p, error_reason))
-      return -1;
-  }
-  return slice_id;
+  return -1;
 }
 
 bool flexran::app::management::rrm_management::remove_vnetwork(
@@ -213,13 +169,13 @@ bool flexran::app::management::rrm_management::associate_ue_vnetwork(
   for (uint64_t bs_id : rib_.get_available_base_stations()) {
     std::shared_ptr<flexran::rib::enb_rib_info> bs = rib_.get_bs(bs_id);
     const auto slices = bs->get_enb_config().cell_config(0).slice_config();
-    for (const protocol::flex_dl_slice& dl : slices.dl()) {
+    for (const protocol::flex_slice& dl : slices.dl()) {
       if (dl.id() == slice_id) {
         num_slices++;
         break;
       }
     }
-    for (const protocol::flex_ul_slice& ul : slices.ul()) {
+    for (const protocol::flex_slice& ul : slices.ul()) {
       if (ul.id() == slice_id) {
         num_slices++;
         break;
@@ -374,47 +330,19 @@ bool flexran::app::management::rrm_management::apply_slice_config_policy(
 
   // enforce every DL/UL slice has an ID and well formed parameters
   for (int i = 0; i < slice_config.dl_size(); i++) {
-    if (!verify_dl_slice_config(slice_config.dl(i), error_reason)) {
+    if (!verify_slice_config(slice_config.dl(i), error_reason)) {
       error_reason += " in DL slice configuration at index " + std::to_string(i);
       LOG4CXX_ERROR(flog::app, error_reason);
       return false;
     }
   }
   for (int i = 0; i < slice_config.ul_size(); i++) {
-    if (!verify_ul_slice_config(slice_config.ul(i), error_reason)) {
+    if (!verify_slice_config(slice_config.ul(i), error_reason)) {
       error_reason += " in UL slice configuration at index " + std::to_string(i);
       LOG4CXX_ERROR(flog::app, error_reason);
       return false;
     }
   }
-
-  // enforce that the sum percentage is equal or below 100 percent
-  if (!verify_global_slice_percentage(bs_id, slice_config, error_reason)) {
-    LOG4CXX_ERROR(flog::app, error_reason);
-    return false;
-  }
-
-  // no UL slice is allowed to have the same firstRb as any other (in fact,
-  // together with the percentage value it is computed that they don't
-  // overlap). Therefore, if we have one new slice without a firstRb value, try
-  // to add firstRb by checking a "free" region. This is to keep the short
-  // version of the slice configuration end point working and we therefore
-  // check that this slice carries nothing except an ID */
-  if (slice_config.ul_size() == 1
-      && slice_config.ul(0).id() != 0
-      && !slice_config.ul(0).has_label()
-      && !slice_config.ul(0).has_percentage()
-      && !slice_config.ul(0).has_isolation()
-      && !slice_config.ul(0).has_priority()
-      && !slice_config.ul(0).has_first_rb()
-      && !slice_config.ul(0).has_maxmcs()
-      && slice_config.ul(0).sorting_size() == 0
-      && !slice_config.ul(0).has_accounting()
-      && !slice_config.ul(0).has_scheduler_name()
-      && try_add_first_rb(bs_id, *slice_config.mutable_ul(0)))
-    LOG4CXX_WARN(flog::app, "no firstRb value detected, added "
-        << slice_config.ul(0).first_rb() << " so that it does not clash in "
-        << "the BS. You can override this by specifying a firstRb value.");
 
   protocol::flex_cell_config cell_config;
   cell_config.mutable_slice_config()->CopyFrom(slice_config);
@@ -451,7 +379,7 @@ bool flexran::app::management::rrm_management::remove_slice(uint64_t bs_id,
 
   // enforce every DL/UL slice has an ID and well formed parameters
   for (int i = 0; i < slice_config.dl_size(); i++) {
-    if (!verify_dl_slice_removal(slice_config.dl(i), error_reason)) {
+    if (!verify_slice_removal(slice_config.dl(i), error_reason)) {
       error_reason += " in DL slice configuration at index " + std::to_string(i);
       LOG4CXX_ERROR(flog::app, error_reason);
       return false;
@@ -464,7 +392,7 @@ bool flexran::app::management::rrm_management::remove_slice(uint64_t bs_id,
     }
   }
   for (int i = 0; i < slice_config.ul_size(); i++) {
-    if (!verify_ul_slice_removal(slice_config.ul(i), error_reason)) {
+    if (!verify_slice_removal(slice_config.ul(i), error_reason)) {
       error_reason += " in UL slice configuration at index " + std::to_string(i);
       LOG4CXX_ERROR(flog::app, error_reason);
       return false;
@@ -626,8 +554,8 @@ void flexran::app::management::rrm_management::push_ue_config_reconfiguration(
   req_manager_.send_message(bs_id, config_message);
 }
 
-bool flexran::app::management::rrm_management::verify_dl_slice_config(
-    const protocol::flex_dl_slice& s, std::string& error_message)
+bool flexran::app::management::rrm_management::verify_slice_config(
+    const protocol::flex_slice& s, std::string& error_message)
 {
   if (!s.has_id()) {
     error_message = "Missing slice ID";
@@ -637,44 +565,11 @@ bool flexran::app::management::rrm_management::verify_dl_slice_config(
     error_message = "Slice ID must be within [0,255]";
     return false;
   }
-  /* label is enum */
-  if (s.has_percentage() && (s.percentage() < 1 || s.percentage() > 100)) {
-    error_message = "DL percentage must be within [1,100]";
-    return false;
-  }
-  /* isolation can only be true or false */
-  if (s.has_priority() && s.priority() > 20) {
-    error_message = "priority must be within [0,20]";
-    return false;
-  }
-  if (s.has_position_low() && s.position_low() > 25) {
-    error_message = "position_low must be within [0,25] (RBG)";
-    return false;
-  }
-  if (s.has_position_high() && s.position_high() > 25) {
-    error_message = "position_high must be within [0,25] (RBG)";
-    return false;
-  }
-  if (s.has_position_low() && s.has_position_high()
-      && s.position_low() >= s.position_high()) {
-    error_message = "position_low must be smaller than position_high";
-    return false;
-  }
-  if (s.has_maxmcs() && s.maxmcs() > 28) {
-    error_message = "DL maxmcs must be within [0,28]";
-    return false;
-  }
-  /* sorting is enum */
-  /* accounting is enum */
-  if (s.has_scheduler_name()) {
-    error_message = "setting another scheduler is not supported";
-    return false;
-  }
   return true;
 }
 
-bool flexran::app::management::rrm_management::verify_dl_slice_removal(
-    const protocol::flex_dl_slice& s, std::string& error_message)
+bool flexran::app::management::rrm_management::verify_slice_removal(
+    const protocol::flex_slice& s, std::string& error_message)
 {
   if (!s.has_id()) {
     error_message = "Missing slice ID";
@@ -686,79 +581,6 @@ bool flexran::app::management::rrm_management::verify_dl_slice_removal(
   }
   if (s.id() == 0) {
     error_message = "DL Slice 0 can not be deleted";
-    return false;
-  }
-  if (!s.has_percentage() || s.percentage() != 0) {
-    error_message = "Slice removal requires percentage to be set to 0";
-    return false;
-  }
-  return true;
-}
-
-bool flexran::app::management::rrm_management::verify_ul_slice_config(
-    const protocol::flex_ul_slice& s, std::string& error_message)
-{
-  if (!s.has_id()) {
-    error_message = "Missing slice ID";
-    return false;
-  }
-  if (s.id() > 255) {
-    error_message = "Slice ID must be within [0,255]";
-    return false;
-  }
-  /* label is enum */
-  if (s.has_percentage() && (s.percentage() < 1 || s.percentage() > 100)) {
-    error_message = "percentage must be within [1,100]";
-    return false;
-  }
-  /* isolation can only be true or false */
-  if (s.has_priority()) {
-    error_message = "slice priority is not supported";
-    return false;
-  }
-  if (s.has_first_rb() && s.first_rb() > 99) {
-    error_message = "first_rb must be within [0,99] (RB)";
-    return false;
-  }
-  /*if (s.has_length_rb()
-      && (s.length_rb() < 1 || s.length_rb() > 100)) {
-    error_message = "length_rb must be within [1,100] (RB)";
-    return false;
-  }
-  if (s.has_length_rb() && s.has_first_rb() && s.length_rb() + s.first_rb() > 100) {
-    error_message = "length_rb must be within [1,100-first_rb] (RB)";
-    return false;
-  }*/
-  if (s.has_maxmcs() && s.maxmcs() > 20) {
-    error_message = "UL maxmcs must be within [0,20]";
-    return false;
-  }
-  /* sorting is enum */
-  /* accounting is enum */
-  if (s.has_scheduler_name()) {
-    error_message = "setting another scheduler is not supported";
-    return false;
-  }
-  return true;
-}
-
-bool flexran::app::management::rrm_management::verify_ul_slice_removal(
-    const protocol::flex_ul_slice& s, std::string& error_message)
-{
-  if (!s.has_id()) {
-    error_message = "Missing slice ID";
-    return false;
-  }
-  if (s.id() > 255) {
-    error_message = "Slice ID must be within [1,255]";
-    return false;
-  }
-  if (s.id() == 0) {
-    error_message = "UL Slice 0 can not be deleted";
-    return false;
-  }
-  if (!s.has_percentage() || s.percentage() != 0) {
-    error_message = "Slice removal requires percentage to be set to 0";
     return false;
   }
   return true;
@@ -773,8 +595,7 @@ bool flexran::app::management::rrm_management::verify_global_slice_percentage(
     return false;
   }
   const protocol::flex_slice_config& ex = h->get_enb_config().cell_config(0).slice_config();
-  return verify_global_dl_slice_percentage(ex, c, error_message)
-      && verify_global_ul_slice_percentage(ex, c, error_message);
+  return verify_global_dl_slice_percentage(ex, c, error_message);
 }
 
 bool flexran::app::management::rrm_management::verify_global_dl_slice_percentage(
@@ -782,38 +603,12 @@ bool flexran::app::management::rrm_management::verify_global_dl_slice_percentage
     const protocol::flex_slice_config& update, std::string& error_message)
 {
   std::map<int, int> slice_pct;
-  for (int i = 0; i < existing.dl_size(); i++)
-    slice_pct[existing.dl(i).id()] = existing.dl(i).percentage();
-  for (int i = 0; i < update.dl_size(); i++)
-    // the BS will copy the values from slice 0 if not specified, so do we
-    slice_pct[update.dl(i).id()] = update.dl(i).has_percentage() ?
-        update.dl(i).percentage() : slice_pct[0];
+  return false;
   int sum = 0;
   for (const auto &p: slice_pct)
     sum += p.second;
   if (sum > 100) {
     error_message = "resulting DL slice sum percentage exceeds 100";
-    return false;
-  }
-  return true;
-}
-
-bool flexran::app::management::rrm_management::verify_global_ul_slice_percentage(
-    const protocol::flex_slice_config& existing,
-    const protocol::flex_slice_config& update, std::string& error_message)
-{
-  std::map<int, int> slice_pct;
-  for (int i = 0; i < existing.ul_size(); i++)
-    slice_pct[existing.ul(i).id()] = existing.ul(i).percentage();
-  for (int i = 0; i < update.ul_size(); i++)
-    // the BS will copy the values from slice 0 if not specified, so do we
-    slice_pct[update.ul(i).id()] = update.ul(i).has_percentage() ?
-        update.ul(i).percentage() : slice_pct[0];
-  int sum = 0;
-  for (const auto &p: slice_pct)
-    sum += p.second;
-  if (sum > 100) {
-    error_message = "resulting UL slice sum percentage exceeds 100";
     return false;
   }
   return true;
@@ -1045,21 +840,4 @@ bool flexran::app::management::rrm_management::parse_rnti_imsi(
     flexran::rib::rnti_t& rnti) const
 {
   return rib_.get_bs(bs_id)->parse_rnti_imsi(rnti_imsi_s, rnti);
-}
-
-bool flexran::app::management::rrm_management::try_add_first_rb(
-    uint64_t bs_id, protocol::flex_ul_slice& slice)
-{
-  // this function is dumb: it simply assumes that all existing slices are
-  // adjacent and only one is added. Therefore, it picks the highest first_Rb,
-  // adds N_RB * percentage and adds this to the existing slice.
-  auto h = rib_.get_bs(bs_id);
-  if (h == nullptr) return false;
-  const protocol::flex_slice_config& ex = h->get_enb_config().cell_config(0).slice_config();
-  if (ex.ul_size() < 1) return false;
-  const int N_RB = h->get_enb_config().cell_config(0).ul_bandwidth();
-  const int pct = ex.ul(0).percentage();
-  const int first_rb = ex.ul(ex.ul_size() - 1).first_rb();
-  slice.set_first_rb(first_rb + pct * N_RB / 100);
-  return true;
 }
