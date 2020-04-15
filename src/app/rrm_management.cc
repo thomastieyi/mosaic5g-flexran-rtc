@@ -110,7 +110,7 @@ bool flexran::app::management::rrm_management::remove_vnetwork(
     const std::string s = std::to_string(slice_id);
     const std::string p = "{\"dl\":[{id:" + s
         + ",percentage:0}],\"ul\":[{id:" + s + ",percentage:0}]}";
-    if (!remove_slice(bs_id, p, error_reason)) return false;
+    //if (!remove_slice(bs_id, p, error_reason)) return false;
   }
 
   /* remove all IMSIs from the UE-slice association list for this slice */
@@ -349,61 +349,42 @@ void flexran::app::management::rrm_management::apply_slice_config_policy(
       << ":\n" << pol_corrected);
 }
 
-bool flexran::app::management::rrm_management::remove_slice(uint64_t bs_id,
-    const std::string& policy, std::string& error_reason)
+void flexran::app::management::rrm_management::remove_slice(
+    const std::string& bs, const std::string& policy)
 {
-  if (!rib_.get_bs(bs_id)) {
-    error_reason = "BS does not exist";
-    LOG4CXX_ERROR(flog::app, "BS " << bs_id << " does not exist");
-    return false;
-  }
+  uint64_t bs_id = rib_.parse_bs_id(bs);
+  if (bs_id == 0)
+    throw std::invalid_argument("BS " + bs + " does not exist");
 
   protocol::flex_slice_config slice_config;
   google::protobuf::util::Status ret;
   ret = google::protobuf::util::JsonStringToMessage(policy, &slice_config,
       google::protobuf::util::JsonParseOptions());
   if (ret != google::protobuf::util::Status::OK) {
-    error_reason = "ProtoBuf parser error";
-    LOG4CXX_ERROR(flog::app,
-        "error while parsing ProtoBuf slice_config message:" << ret.ToString());
-    return false;
+    LOG4CXX_ERROR(flog::app, "error while parsing ProtoBuf message:" << ret.ToString());
+    throw std::invalid_argument("Protobuf parser error");
   }
 
-  // enforce every DL/UL slice has an ID and well formed parameters
-  for (int i = 0; i < slice_config.dl_size(); i++) {
-    if (!verify_slice_removal(slice_config.dl(i), error_reason)) {
-      error_reason += " in DL slice configuration at index " + std::to_string(i);
-      LOG4CXX_ERROR(flog::app, error_reason);
-      return false;
-    }
-    if (!rib_.get_bs(bs_id)->has_dl_slice(slice_config.dl(i).id())) {
-      error_reason = "DL slice " + std::to_string(slice_config.dl(i).id())
-          + " does not exist";
-      LOG4CXX_ERROR(flog::app, error_reason);
-      return false;
-    }
-  }
-  for (int i = 0; i < slice_config.ul_size(); i++) {
-    if (!verify_slice_removal(slice_config.ul(i), error_reason)) {
-      error_reason += " in UL slice configuration at index " + std::to_string(i);
-      LOG4CXX_ERROR(flog::app, error_reason);
-      return false;
-    }
-    if (!rib_.get_bs(bs_id)->has_ul_slice(slice_config.ul(i).id())) {
-      error_reason = "UL slice " + std::to_string(slice_config.ul(i).id())
-          + " does not exist";
-      LOG4CXX_ERROR(flog::app, error_reason);
-      return false;
-    }
-  }
+  slice_config.clear_algorithm();
+  auto f = [](const protocol::flex_slice& s) { return s.has_id(); };
+  if (!std::all_of(slice_config.dl().begin(), slice_config.dl().end(), f)
+      || !std::all_of(slice_config.ul().begin(), slice_config.ul().end(), f))
+    throw std::invalid_argument("all slices must have an ID and no params");
+  for (auto& s: *slice_config.mutable_dl())
+    s.clear_static_();
+  for (auto& s: *slice_config.mutable_ul())
+    s.clear_static_();
 
   protocol::flex_cell_config cell_config;
   cell_config.mutable_slice_config()->CopyFrom(slice_config);
   push_cell_config_reconfiguration(bs_id, cell_config);
-  LOG4CXX_INFO(flog::app, "sent remove slice command to BS " << bs_id
-      << ":\n" << policy << "\n");
 
-  return true;
+  std::string pol_corrected;
+  google::protobuf::util::JsonPrintOptions opt;
+  opt.add_whitespace = true;
+  google::protobuf::util::MessageToJsonString(slice_config, &pol_corrected, opt);
+  LOG4CXX_INFO(flog::app, "sent remove slice command to BS " << bs_id
+      << ":\n" << pol_corrected << "\n");
 }
 
 bool flexran::app::management::rrm_management::change_ue_slice_association(

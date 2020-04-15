@@ -44,8 +44,7 @@ namespace flexran {
             event::subscription& sub);
 
         void apply_slice_config_policy(const std::string& bs, const std::string& policy);
-        bool remove_slice(uint64_t bs_id, const std::string& policy,
-            std::string& error_reason);
+        void remove_slice(const std::string& bs, const std::string& policy);
         bool change_ue_slice_association(uint64_t bs_id, const std::string& policy,
             std::string& error_reason);
         bool apply_cell_config_policy(uint64_t bs_id, const std::string& policy,
