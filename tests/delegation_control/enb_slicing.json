@@ -1,26 +1,28 @@
 {
+  "algorithm": "Static",
   "dl": [
     {
       "id": 0,
-      "percentage": 25,
-      "maxmcs": 28
+      "static": {
+        "posLow": 0,
+        "posHigh": 5
+      }
     },
     {
-      "id": 3,
-      "percentage": 25,
-      "maxmcs": 28
+      "id": 1,
+      "static": {
+        "posLow": 6,
+        "posHigh": 6
+      }
     }
   ],
   "ul": [
     {
       "id": 0,
-      "percentage": 25,
-      "maxmcs": 20
-    },
-    {
-      "id": 3,
-      "percentage": 25,
-      "maxmcs": 20
+      "static": {
+        "posLow": 0,
+        "posHigh": 10
+      }
     }
   ]
 }
