@@ -43,8 +43,7 @@ namespace flexran {
         rrm_management(rib::Rib& rib, const core::requests_manager& rm,
             event::subscription& sub);
 
-        bool apply_slice_config_policy(uint64_t bs_id, const std::string& policy,
-            std::string& error_reason);
+        void apply_slice_config_policy(const std::string& bs, const std::string& policy);
         bool remove_slice(uint64_t bs_id, const std::string& policy,
             std::string& error_reason);
         bool change_ue_slice_association(uint64_t bs_id, const std::string& policy,
