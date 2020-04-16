@@ -282,9 +282,9 @@ void flexran::app::management::rrm_management::ue_add_update(uint64_t bs_id,
         + std::to_string(it->second) + ",\"ulSliceId\":"
         + std::to_string(it->second) + "}]}";
     std::string e;
-    if (!change_ue_slice_association(bs_id, p, e)) {
-      LOG4CXX_ERROR(flog::app, "error: " + e);
-    }
+    //if (!change_ue_slice_association(bs_id, p, e)) {
+    //  LOG4CXX_ERROR(flog::app, "error: " + e);
+    //}
   }
 }
 
@@ -387,63 +387,53 @@ void flexran::app::management::rrm_management::remove_slice(
       << ":\n" << pol_corrected << "\n");
 }
 
-bool flexran::app::management::rrm_management::change_ue_slice_association(
-    uint64_t bs_id, const std::string& policy, std::string& error_reason)
+void flexran::app::management::rrm_management::change_ue_slice_association(
+    const std::string& bs, const std::string& policy)
 {
-  if (!rib_.get_bs(bs_id)) {
-    error_reason = "BS does not exist";
-    LOG4CXX_ERROR(flog::app, "BS " << bs_id << " does not exist");
-    return false;
-  }
+  uint64_t bs_id = rib_.parse_bs_id(bs);
+  if (bs_id == 0)
+    throw std::invalid_argument("BS " + bs + " does not exist");
 
   protocol::flex_ue_config_reply ue_config_reply;
   google::protobuf::util::Status ret;
   ret = google::protobuf::util::JsonStringToMessage(policy, &ue_config_reply,
       google::protobuf::util::JsonParseOptions());
   if (ret != google::protobuf::util::Status::OK) {
-    error_reason = "ProtoBuf parser error";
-    LOG4CXX_ERROR(flog::app,
-        "error while parsing ProtoBuf ue_config_reply message:" << ret.ToString());
-    return false;
+    LOG4CXX_ERROR(flog::app, "error while parsing ProtoBuf message:" << ret.ToString());
+    throw std::invalid_argument("Protobuf parser error");
   }
 
   // enforce UE configaration
-  if (ue_config_reply.ue_config_size() == 0) {
-    error_reason = "Missing UE configuration";
-    LOG4CXX_ERROR(flog::app,
-        "the ue_config_reply message must contain a UE configuration");
-    return false;
-  }
+  if (ue_config_reply.ue_config_size() == 0)
+    throw std::invalid_argument("missing UE configuration");
   // enforce UE configuration has both RNTI and UL or DL slice ID
   for (int i = 0; i < ue_config_reply.ue_config_size(); i++) {
+    std::string error_reason;
     if (!verify_ue_slice_assoc_msg(ue_config_reply.ue_config(i), error_reason)) {
       error_reason += " in UE-slice association at index " + std::to_string(i);
-      LOG4CXX_ERROR(flog::app, error_reason);
-      return false;
+      throw std::invalid_argument(error_reason);
     }
     if (ue_config_reply.ue_config(i).has_dl_slice_id()
         && !rib_.get_bs(bs_id)->has_dl_slice(ue_config_reply.ue_config(i).dl_slice_id())) {
       error_reason = "DL slice "
           + std::to_string(ue_config_reply.ue_config(i).dl_slice_id())
           + " does not exist";
-      LOG4CXX_ERROR(flog::app, error_reason);
-      return false;
+      throw std::invalid_argument(error_reason);
     }
     if (ue_config_reply.ue_config(i).has_ul_slice_id()
         && !rib_.get_bs(bs_id)->has_ul_slice(ue_config_reply.ue_config(i).ul_slice_id())) {
       error_reason = "UL slice "
           + std::to_string(ue_config_reply.ue_config(i).ul_slice_id())
           + " does not exist";
-      LOG4CXX_ERROR(flog::app, error_reason);
-      return false;
+      throw std::invalid_argument(error_reason);
     }
   }
 
   for (int i = 0; i < ue_config_reply.ue_config_size(); i++) {
+    std::string error_reason;
     if (!verify_rnti_imsi(bs_id, ue_config_reply.mutable_ue_config(i), error_reason)) {
       error_reason += " in UE-slice association at index " + std::to_string(i);
-      LOG4CXX_ERROR(flog::app, error_reason);
-      return false;
+      throw std::invalid_argument(error_reason);
     }
   }
 
@@ -454,8 +444,6 @@ bool flexran::app::management::rrm_management::change_ue_slice_association(
   google::protobuf::util::MessageToJsonString(ue_config_reply, &pol_corrected, opt);
   LOG4CXX_INFO(flog::app, "sent new UE configuration to BS "
       << bs_id << ":\n" << pol_corrected);
-
-  return true;
 }
 
 bool flexran::app::management::rrm_management::apply_cell_config_policy(
