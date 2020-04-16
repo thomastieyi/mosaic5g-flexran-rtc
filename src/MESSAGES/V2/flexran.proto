@@ -8,33 +8,38 @@ import "config_messages.proto";
 import "controller_commands.proto";
 import "control_delegation.proto";
 
-
+/**
+ * FlexRAN Control protocol
+*/
 message flexran_message {
-       optional flexran_direction msg_dir = 100;
+       optional flexran_direction msg_dir = 100; // FlexRAN message direction
 	oneof msg {
-              flex_hello hello_msg = 1;
-              flex_echo_request echo_request_msg = 2;
-	      flex_echo_reply echo_reply_msg = 3;
-	      flex_stats_request stats_request_msg = 4;
-	      flex_stats_reply stats_reply_msg = 5;
-	      flex_sf_trigger sf_trigger_msg = 6;
-	      flex_ul_sr_info ul_sr_info_msg = 7;
-	      flex_enb_config_request enb_config_request_msg = 8;
-	      flex_enb_config_reply enb_config_reply_msg = 9;
-	      flex_ue_config_request ue_config_request_msg = 10;
-	      flex_ue_config_reply ue_config_reply_msg = 11;
-	      flex_lc_config_request lc_config_request_msg = 12;
-	      flex_lc_config_reply lc_config_reply_msg = 13;
-	      flex_dl_mac_config dl_mac_config_msg = 14;
-	      flex_ue_state_change ue_state_change_msg = 15;
-	      flex_control_delegation control_delegation_msg = 16;
-	      flex_agent_reconfiguration agent_reconfiguration_msg = 17;
-	      flex_rrc_triggering rrc_triggering = 18;
-	      flex_ul_mac_config ul_mac_config_msg = 19;
-              flex_disconnect disconnect_msg = 20;
+              flex_hello hello_msg = 1;  // FlexRAN protocol hello message
+              flex_echo_request echo_request_msg = 2; // FlexRAN protocol echo request message
+	      flex_echo_reply echo_reply_msg = 3; // FlexRAN Protocol echo reply message
+	      flex_stats_request stats_request_msg = 4; // eNB/gNB stats request message
+	      flex_stats_reply stats_reply_msg = 5; // eNB/gNB stats reply message
+	      flex_sf_trigger sf_trigger_msg = 6; // eNB/gNB subframe trigger message, sent from RAN agent/runtime to controller
+	      flex_ul_sr_info ul_sr_info_msg = 7; // eNB/gNB uplink scheduling request info messahe
+	      flex_enb_config_request enb_config_request_msg = 8; // eNB/gNB config request message
+	      flex_enb_config_reply enb_config_reply_msg = 9; // eNB/gNB config reply message
+	      flex_ue_config_request ue_config_request_msg = 10; // UE config request message
+	      flex_ue_config_reply ue_config_reply_msg = 11; // UE config reply message 
+	      flex_lc_config_request lc_config_request_msg = 12; // UE logical channel config request message
+	      flex_lc_config_reply lc_config_reply_msg = 13; // UE logical channel config reply message
+	      flex_dl_mac_config dl_mac_config_msg = 14; // UE MAC config message
+	      flex_ue_state_change ue_state_change_msg = 15; // UE state change message
+	      flex_control_delegation control_delegation_msg = 16; // FlexRAN control delegation message
+	      flex_agent_reconfiguration agent_reconfiguration_msg = 17; // Flexran agent/runtime reconfiguration message
+	      flex_rrc_triggering rrc_triggering = 18; // eNb/gNB RRC measurement triggering messages
+	      flex_ul_mac_config ul_mac_config_msg = 19; // UE uplink MAc config message
+              flex_disconnect disconnect_msg = 20; // FlexRAN protocol disconnect message
 	}
 }
 
+/**
+ * FlexRAN protocol message direction
+ */
 enum flexran_direction {
      //option allow_alias = true;
      NOT_SET = 0;
@@ -42,7 +47,10 @@ enum flexran_direction {
      SUCCESSFUL_OUTCOME=2;
      UNSUCCESSFUL_OUTCOME=3;	
 }
-	
+
+/**
+ * FlexRAN message error types 
+ */
 enum flexran_err {
         //option allow_alias = true;
 	// message errors
@@ -62,30 +70,36 @@ enum flexran_err {
 	UNEXPECTED = -100;	
 }	
 
-//
 // Maintenance and discovery messages
-//
 
+/**
+* FlexRAN protocol hello message 
+*/
 message flex_hello {
 	optional flex_header header = 1;
 }
 
+/**
+ * FlexRAN protocol echo request message  
+ */
 message flex_echo_request {
 	optional flex_header header = 1;
 	extensions 100 to 199;
 }
 
 
+/**
+ * FlexRAN protocol echo reply message  
+ */
 message flex_echo_reply {
 	optional flex_header header = 1;
 	extensions 100 to 199;
 }
 
 
-//
-// Statistics request and reply message
-//
-
+/**
+* Statistics request message for both cell and UE
+*/
 message flex_stats_request {
 	optional flex_header header = 1;
 	optional flex_stats_type type = 2;
@@ -96,16 +110,19 @@ message flex_stats_request {
 	}
 }
 
+
+/**
+* Statistics reply message 
+*/
 message flex_stats_reply {
 	optional flex_header header = 1;
 	repeated flex_ue_stats_report ue_report = 2;
 	repeated flex_cell_stats_report cell_report = 3;
 }
 
-//
-// Time indication messages
-//
-
+/**
+ * subframe indication messages
+ */
 message flex_sf_trigger {
 	optional flex_header header = 1;
 	optional uint32 sfn_sf = 2;
@@ -113,22 +130,26 @@ message flex_sf_trigger {
 	repeated flex_ul_info ul_info = 4;	
 }
 
-//
-// Asynchronous messages
-//
-
+/**
+* UE uplink Scheduling request messages (Asynchronous)
+*/
 message flex_ul_sr_info {
 	optional flex_header header = 1;
 	optional uint32 sfn_sf = 2;
 	repeated uint32 rnti = 3;
 }
 
-//
-// eNB configuration messages
-//
+/**
+ * eNB configuration request messages
+ */
 message flex_enb_config_request {
 	optional flex_header header = 1;
 }
+
+
+/**
+ * eNB configuration reply messages
+ */
 
 message flex_enb_config_reply {
 	optional flex_header header = 1;
@@ -137,28 +158,45 @@ message flex_enb_config_reply {
         optional uint32 device_spec = 4;
 }
 
+
+/**
+ * UE configuration request messages
+ */
 message flex_ue_config_request {
 	optional flex_header header = 1;
 }
 
+
+/**
+ * UE configuration reply messages
+ */
 message flex_ue_config_reply {
 	optional flex_header header = 1;
 	repeated flex_ue_config ue_config = 2;
 }
 
+
+/**
+ * UE logical channel configuration request messages
+ */
+ 
 message flex_lc_config_request {
 	optional flex_header header = 1;
 }
 
+/**
+ * UE logical channel configuration reply messages
+ */
 message flex_lc_config_reply {
 	optional flex_header header = 1;
 	repeated flex_lc_ue_config lc_ue_config = 2;
 }
 
-//
-// Controller command messages
-//
+//Controller command messages
 
+/** 
+ * Downlink MAC config message   
+ */
 message flex_dl_mac_config {
 	optional flex_header header = 1;
 	optional uint32 sfn_sf = 2;
@@ -168,32 +206,38 @@ message flex_dl_mac_config {
 	repeated flex_pdcch_ofdm_sym_count ofdm_sym = 6; // OFDM symbol count for each CC
 }
 
+
+/** 
+ * Uplink MAC config message   
+ */
 message flex_ul_mac_config {
 	optional flex_header header = 1;
  	optional uint32 sfn_sf = 2;
 	repeated flex_ul_data ul_ue_data = 3;
 }
 
+
+/** 
+ * RRC measurement report triggering message 
+ */
 message flex_rrc_triggering {
 
 	optional flex_header header = 1;
 	optional string rrc_trigger = 2;	
 }
 
-//
-// UE state change message
-//
-
+/**
+* UE state change message
+*/
 message flex_ue_state_change {
 	optional flex_header header = 1;
 	optional uint32 type = 2;		// One of the FLUESC_* values
 	optional flex_ue_config config = 3;	// Body of the message (based on type)
 }
 
-//
-// Control delegation message
-//
-
+/**
+* Control delegation message
+*/
 message flex_control_delegation {
 	optional flex_header header = 1;
 	optional uint32 delegation_type = 2;	// Bitmap of FLCDT_* flags
@@ -201,29 +245,35 @@ message flex_control_delegation {
 	optional string name = 4;		// The delegated functions names ordered based on bitmap flags
 }
 
-//
-// Agent reconfiguration message
-//
-
+/**
+* Agent reconfiguration message
+*/
 message flex_agent_reconfiguration {
 	optional flex_header header = 1;
 	optional string policy = 2;		// The policy changes using YAML syntax in string format    
 }
 
-// Extensions of the echo request and reply
-// messages for carrying a latency value in ms
+/**
+* Extensions of the echo request RTT latency value in ms
+*/
 message flex_echo_request_latency {
 	extend flex_echo_request {
 	       optional uint32 latency = 100;
 	}
 }
 
+/**
+* Extensions of the echo reply carrying a latency value in ms
+*/
 message flex_echo_reply_latency {
 	extend flex_echo_reply {
 	       optional uint32 latency = 100;
 	}
 }
 
+/**
+* FlexRAN protocol disconnect message 
+*/
 message flex_disconnect {
         optional flex_header header = 1;
 }

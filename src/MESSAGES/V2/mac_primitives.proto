@@ -1,10 +1,9 @@
 syntax = "proto2";
 package protocol;
 
-//
-// Message containing the DL DCI info
-//
-
+/**
+* Message containing the downlink DCI info
+*/
 message flex_dl_dci {
 	optional uint32 rnti = 1;
 	optional uint32 res_alloc = 2;		// Type of resource allocation
@@ -36,6 +35,9 @@ message flex_dl_dci {
 	optional uint32 cif = 27;     		// CIF for cross-carrier scheduling
 }
 
+/**
+* Message containing the uplink DCI info
+*/
 message flex_ul_dci {
         optional uint32 rnti = 1;
         optional uint32 rb_start = 2;           // The start RB allocated to the UE 
@@ -69,23 +71,24 @@ message flex_ul_dci {
 }
 
 
-//
-// Messages related to the creation of RLC PDUs
-//
-
+/**
+* Messages related to the creation of RLC PDUs
+*/
 message flex_rlc_pdu {
 	repeated flex_rlc_pdu_tb rlc_pdu_tb = 1; // list of parameters for the creation of RLC PDUs. One for each TB
 }
 
+/**
+* Messages related to the size of RLC PDUs
+*/
 message flex_rlc_pdu_tb {
 	optional uint32 logical_channel_id = 1;
 	optional uint32 size = 2;	   // Maximum RLC PDU to be created in bytes
 }
 
-//
-// MAC content types related enums
-//
-
+/**
+* MAC content types related enums
+*/
 enum flex_dci_format {
      FLDCIF_1 = 0;
      FLDCIF_1A = 1;
