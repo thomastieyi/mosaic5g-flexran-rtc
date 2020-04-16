@@ -77,6 +77,15 @@ namespace flexran {
             std::string& error_message);
         bool verify_rnti_imsi(uint64_t bs_id, protocol::flex_ue_config *c,
             std::string& error_message);
+
+        void verify_static_slice_configuration(const protocol::flex_slice_config& c);
+        protocol::flex_slice_config transform_to_static_slice_configuration(
+            const protocol::flex_slice_config& c);
+
+        void verify_nvs_slice_configuration(const protocol::flex_slice_config& c);
+        protocol::flex_slice_config transform_to_nvs_slice_configuration(
+            const protocol::flex_slice_config& c);
+
         static bool verify_cell_config_for_restart(const protocol::flex_cell_config& c,
             std::string& error_message);
 	

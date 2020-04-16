@@ -328,15 +328,10 @@ void flexran::app::management::rrm_management::apply_slice_config_policy(
   if (slice_config.algorithm() == protocol::flex_slice_algorithm::None
       && (slice_config.dl_size() > 0 || slice_config.ul_size() > 0))
     throw std::invalid_argument("no slice algorithm, but slices present");
-  if (slice_config.algorithm() == protocol::flex_slice_algorithm::Static
-      && (slice_config.dl_size() == 0 || slice_config.ul_size() == 0))
-    throw std::invalid_argument("cannot have zero slices");
-
-  if (!std::any_of(slice_config.dl().begin(), slice_config.dl().end(),
-        [](const protocol::flex_slice& s) { return s.id() == 0; })
-      || !std::any_of(slice_config.ul().begin(), slice_config.ul().end(),
-        [](const protocol::flex_slice& s) { return s.id() == 0; }))
-    throw std::invalid_argument("need to have one slice with ID 0");
+  if (slice_config.algorithm() == protocol::flex_slice_algorithm::Static)
+    verify_static_slice_configuration(slice_config);
+  if (slice_config.algorithm() == protocol::flex_slice_algorithm::NVS)
+    verify_nvs_slice_configuration(slice_config);
 
   protocol::flex_cell_config cell_config;
   cell_config.mutable_slice_config()->CopyFrom(slice_config);
@@ -741,4 +736,47 @@ bool flexran::app::management::rrm_management::parse_rnti_imsi(
     flexran::rib::rnti_t& rnti) const
 {
   return rib_.get_bs(bs_id)->parse_rnti_imsi(rnti_imsi_s, rnti);
+}
+
+void flexran::app::management::rrm_management::
+    verify_static_slice_configuration(const protocol::flex_slice_config& c)
+{
+  /* do all slices have an ID and (correct) parameters? */
+  auto f = [](const protocol::flex_slice& s) {
+    return s.has_id() && s.has_static_();
+  };
+  if (!std::all_of(c.dl().begin(), c.dl().end(), f)
+      || !std::all_of(c.ul().begin(), c.ul().end(), f))
+    throw std::invalid_argument("all slices need to have an ID and parameters");
+
+  /* TODO: perform admission control */
+}
+
+protocol::flex_slice_config flexran::app::management::rrm_management::
+    transform_to_static_slice_configuration(
+        const protocol::flex_slice_config& c)
+{
+  throw std::invalid_argument(std::string(__func__) + "() not implemented yet");
+  protocol::flex_slice_config nc;
+  return nc;
+}
+
+void flexran::app::management::rrm_management::verify_nvs_slice_configuration(
+    const protocol::flex_slice_config& c)
+{
+  auto f = [](const protocol::flex_slice& s) {
+    return s.has_id() && s.has_nvs() && s.nvs().type_case() != protocol::flex_slice_nvs::TYPE_NOT_SET;
+  };
+  if (!std::all_of(c.dl().begin(), c.dl().end(), f)
+      || !std::all_of(c.ul().begin(), c.ul().end(), f))
+    throw std::invalid_argument("all slices need to have an ID and parameters");
+}
+
+protocol::flex_slice_config
+flexran::app::management::rrm_management::transform_to_nvs_slice_configuration(
+    const protocol::flex_slice_config& c)
+{
+  throw std::invalid_argument(std::string(__func__) + "() not implemented yet");
+  protocol::flex_slice_config nc;
+  return nc;
 }
