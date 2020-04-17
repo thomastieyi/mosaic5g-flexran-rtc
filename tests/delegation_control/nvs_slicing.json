@@ -1,0 +1,38 @@
+{
+  "algorithm": "NVS",
+  "dl": [
+    {
+      "id": 0,
+      "nvs": {
+        "pctReserved": 0.2
+      }
+    },
+    {
+      "id": 1,
+      "label": "video",
+      "nvs": {
+        "rate": {
+          "kps_required" : 4500,
+          "kps_reference" : 17000
+        }
+      }
+    },
+    {
+      "id": 5,
+      "label": "resource_special",
+      "nvs": {
+        "pct_reserved": 0.5
+      }
+    },
+    {
+      "id": 13,
+      "label": "audio",
+      "nvs": {
+        "rate": {
+          "kps_required" : 500,
+          "kps_reference" : 17000
+        }
+      }
+    }
+  ]
+}
