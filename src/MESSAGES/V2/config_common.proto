@@ -3,25 +3,35 @@ package protocol;
 
 
 /**
- * Cell config System information
+ * Cell System information (SI) config 
 */
 message flex_si_config {
-       optional uint32 sfn = 1;
+       optional uint32 sfn = 1;                // System frame number 
        optional uint32 sib1_length = 2;		// The length of SIB1 in bytes
        optional uint32 si_window_length = 3; 	// The scheduling window for all SIs in SF
        repeated flex_si_message si_message = 4;	// List of SI messages to be sent. The index identifies the type of an SI message, i.e. 0 - SIB1, 1..31 - SIx, 32..63 - PCCH
 }
+
+/**
+ * System information message 
+*/
 
 message flex_si_message {
 	optional uint32 periodicity = 1;		// Periodicity of SI msg in radio frames
 	optional uint32 length = 2;			// The length of the SI message in bytes
 }
 
+/**
+ * Frequency hoopping mod e
+*/
 enum flex_hopping_mode {
      FLHM_INTER = 0;
      FLHM_INTERINTRA = 1;
 }
 
+/**
+ * PHICH resource indicator
+*/
 enum flex_phich_resource {
      FLPR_ONE_SIXTH = 0;
      FLPR_HALF = 1;
@@ -29,26 +39,41 @@ enum flex_phich_resource {
      FLPR_TWO = 3;
 }
 
+/**
+ * PHICH resource duration
+*/
 enum flex_phich_duration {
      FLPD_NORMAL = 0;
      FLPD_EXTENDED = 1;
 }
 
+/**
+ * Uplink cyclic prefix length type
+*/
 enum flex_ul_cyclic_prefix_length {
      FLUCPL_NORMAL = 0;
      FLUCPL_EXTENDED = 1;
 }
 
+/**
+ * Downlink cyclic prefix length type
+*/
 enum flex_dl_cyclic_prefix_length {
      FLDCPL_NORMAL = 0;
      FLDCPL_EXTENDED = 1;
 }
 
+/**
+ * Duplexing mode
+*/
 enum flex_duplex_mode {
      FLDM_TDD = 0;
      FLDM_FDD = 1;
 }
 
+/**
+ * QAM Modulation mode
+*/
 enum flex_qam {
      FLEQ_MOD_16QAM = 0;
      FLEQ_MOD_64QAM = 1;
@@ -88,6 +113,10 @@ enum flex_ul_accounting_policy {
 	POLU_NUM    = 2;
 }
 
+/**
+ * Slice labels
+*/
+
 enum flex_slice_label {
 	xMBB  = 0;
 	URLLC = 1;
@@ -100,45 +129,34 @@ enum flex_slice_label {
  * Downlink slice configuration 
 */
 message flex_dl_slice {
-	optional uint32 id = 1;
-	optional flex_slice_label label = 2;
-	// should be between 0 and 100
-	optional uint32 percentage = 3;
-	// whether this slice should be exempted form interslice sharing
-	optional bool   isolation = 4;
-	// increasing value means increasing prio
-	optional uint32 priority = 5;
-	// min and max RB to use (in frequency) in the range [0, N_RBG_MAX]
-	optional uint32 position_low = 6;
-	optional uint32 position_high = 7;
-	// maximum MCS to be allowed in this slice
-	optional uint32 maxmcs = 8;
-	repeated flex_dl_sorting sorting = 9;
-	optional flex_dl_accounting_policy accounting = 10;
-	optional string scheduler_name = 11;
+	optional uint32 id = 1;       // slice identifier 
+	optional flex_slice_label label = 2; // label of a slice 
+	optional uint32 percentage = 3; // percentage between 0 and 100 of resource blocks allocated to a slice. 
+	optional bool   isolation = 4; // Frequency isloation of a slice indicating that  this slice should be exempted form interslice resource sharing.
+	optional uint32 priority = 5; // Priority of a slice when scheduling. Increasing value means increasing prio
+	optional uint32 position_low = 6; //  Slice resource block position low in frequency. Min RB to use (in frequency) in the range [0, N_RBG_MAX].
+	optional uint32 position_high = 7; // Slice resource block position high in frequency. Max RB to use (in frequency) in the range [0, N_RBG_MAX].
+	optional uint32 maxmcs = 8; // maximum MCS to be allowed in this slice
+	repeated flex_dl_sorting sorting = 9; // Slice UE sorting algorithms
+	optional flex_dl_accounting_policy accounting = 10; // Slice resource blocks accoutning   
+	optional string scheduler_name = 11; // slice applied scheduling algorithm
 }
 
 /**
  * Uplink slice configuration 
 */
 message flex_ul_slice {
-	optional uint32 id = 1;
-	optional flex_slice_label label = 2;
-	// should be between 0 and 100
-	optional uint32 percentage = 3;
-	// whether this slice should be exempted form interslice sharing
-	optional bool   isolation = 4;
-	// increasing value means increasing prio
-	optional uint32 priority = 5;
-	// RB start to use (in frequency) in the range [0, N_RB_MAX]
-	optional uint32 first_rb = 6;
-	// TODO RB number
+	optional uint32 id = 1;   // slice identifier 
+	optional flex_slice_label label = 2; // label of a slice 
+	optional uint32 percentage = 3;  // percentage between 0 and 100 of resource blocks allocated to a slice. 
+	optional bool   isolation = 4; // Frequency isloation of a slice indicating that  this slice should be exempted form interslice resource sharing.
+	optional uint32 priority = 5;// Priority of a slice when scheduling. Increasing value means increasing prio
+	optional uint32 first_rb = 6; // RB start to use (in frequency) for this slice within the range [0, N_RB_MAX]/
 	//optional uint32 length_rb = 7;
-	// maximum MCS to be allowed in this slice
-	optional uint32 maxmcs = 8;
-	repeated flex_ul_sorting sorting = 9;
-	optional flex_ul_accounting_policy accounting = 10;
-	optional string scheduler_name = 11;
+	optional uint32 maxmcs = 8; // maximum MCS to be allowed in this slice
+	repeated flex_ul_sorting sorting = 9; // Slice UE sorting algorithms
+	optional flex_ul_accounting_policy accounting = 10; // Slice resource blocks accoutning   
+	optional string scheduler_name = 11;// slice applied scheduling algorithm
 }
 
 // UE config related structures and enums
@@ -147,13 +165,13 @@ message flex_ul_slice {
 * Discontinous reception (DRX) config message 
 */
 message flex_drx_config {
-	optional uint32 on_duration_timer = 1;		// Timer in SF. See TS 36.321
-	optional uint32 drx_inactivity_timer = 2;	// Timer in SF. See TS 36.321
-	optional uint32 drx_retransmission_timer = 3;	// Timer in SF. See TS 36.321
-	optional uint32 long_drx_cycle = 4;		// In SF. See TS 36.321
-	optional uint32 long_drx_cycle_start_offset = 5;// See TS 36.321
-	optional uint32 short_drx_cycle = 6;		// In SF
-	optional uint32 drx_short_cycle_timer = 7;	// Timer in subframes. See TS 36.321
+	optional uint32 on_duration_timer = 1;		// Timer in terms of number of SF. See TS 36.321
+	optional uint32 drx_inactivity_timer = 2;	// Timer in terms of number of SF. See TS 36.321
+	optional uint32 drx_retransmission_timer = 3;	// Timer in terms of number of SF. See TS 36.321
+	optional uint32 long_drx_cycle = 4;		// Long DRX Cycle  in terms of number of SF. See TS 36.321
+	optional uint32 long_drx_cycle_start_offset = 5;// Long DRX cycle offset in terms of number of S. FSee TS 36.321
+	optional uint32 short_drx_cycle = 6;		// Short DRX clcyel in terms of number of SF.
+	optional uint32 drx_short_cycle_timer = 7;	// Short DRX cycle timer in terms of number of SF. See TS 36.321
 }
 
 /**
@@ -164,14 +182,14 @@ message flex_sps_config {
 	optional uint32 semi_persistent_sched_interval_DL = 2; // SPS DL scheduling interval in SF
 	optional uint32 num_of_conf_sps_proc = 3;	   // Number of SPS HARQ processes. See TS 36.321
 	repeated uint32 n1_PUCCH_AN_persistent_element = 4;// See TS36.213. Ignored when config is used, as part of FLPT_SET_UE_CONFIG
-	optional uint32 implicit_release_after = 5;		   // number of empty transmissions before release of SPS
+	optional uint32 implicit_release_after = 5;   // number of empty transmissions before release of SPS
 }
 
 /**
 * Scheduling request config message 
 */
 message flex_sr_config {
-	optional uint32 sr_action = 1;			// Indicates if SR config should be changed or released. One of the FLSRA_* enum values
+	optional flex_setup_release_action sr_action = 1;// Indicates if SR config should be changed or released. One of the FLSRA_* enum values
 	optional uint32 sched_interval = 2;		// SR scheduling interval in SF
 	optional uint32 dsr_trans_max = 3;		// See TS 36.213
 }
@@ -179,7 +197,7 @@ message flex_sr_config {
 * Channel quality indicator config message 
 */
 message flex_cqi_config {
-	optional uint32 cqi_action = 1;			// Indicats if CQI changed or released. One of the FLSRA_* enum values
+	optional flex_setup_release_action cqi_action = 1;// Indicats if CQI changed or released. One of the FLSRA_* enum values
 	optional uint32 cqi_sched_interval = 2;		// CQI scheduling interval in SF
 	optional uint32 ri_sched_interval = 3;		// RI scheduling interval in SF
 }
@@ -220,12 +238,18 @@ enum flex_setup_release_action {
      FLSRA_RELEASE = 1;
 }
 
+/**
+* UE transmission antenna loop type 
+*/
 enum flex_ue_transmission_antenna {
      FLUTA_NONE = 0;
      FLUTA_OPEN_LOOP = 1;
      FLUTA_CLOSED_LOOP = 2;
 }
 
+/**
+* Aperiodic Channel Quality indicator (CQI) report mode 
+*/
 enum flex_aperiodic_cqi_report_mode {
      FLACRM_RM12 = 0;
      FLACRM_RM20 = 1;
@@ -235,6 +259,9 @@ enum flex_aperiodic_cqi_report_mode {
      FLACRM_NONE = 5;
 }
 
+/**
+* TDD ACK and NACK feedback mode 
+*/
 enum flex_tdd_ack_nack_feedback_mode {
      FLTANFM_BUNDLING = 0;
      FLTANFM_MULTIPLEXING = 1;
@@ -246,8 +273,8 @@ enum flex_tdd_ack_nack_feedback_mode {
 message flex_lc_config {
 	optional uint32 lcid = 1;	// The logical channel id
 	optional uint32 lcg = 2;	// The logical channel group (0..3) the LC is mapped to
-	optional uint32 direction = 3;	// The LC direction. One of the FLLCD_* enum values
-	optional uint32 qos_bearer_type = 4;// GBR or NGBR bearer. One of the FLQBT_* enum values
+	optional flex_lc_direction direction = 3;	// The LC direction. One of the FLLCD_* enum values
+	optional flex_qos_bearer_type qos_bearer_type = 4;// QoS GBR or NGBR bearer type. One of the FLQBT_* enum values
 	optional uint32 qci = 5;	// The QCI defined in TS 23.203, coded as defined in TS 36.413. One less than the actual QCI value
 	optional uint64 e_RAB_max_bitrate_UL = 6; // In bps, valid only for GBR traffic 
 	optional uint64 e_RAB_max_bitrate_DL = 7; // In bps, valid only for GBR traffic 
@@ -255,17 +282,26 @@ message flex_lc_config {
 	optional uint64 e_RAB_guaranteed_bitrate_DL = 9;  // In bps, valid only for GBR traffic 
 }
 
+/**
+* Logical channel direction.
+*/ 
 enum flex_lc_direction {
      FLLCD_UL = 0;
      FLLCD_DL = 1;
      FLLCD_BOTH = 2;
 }
 
+/**
+* QoS bearer type: GBR or Non GBR
+*/ 
 enum flex_qos_bearer_type {
      FLQBT_NON_GBR = 0;
      FLQBT_GBR = 1;
 }
 
+/**
+* UE current state indicator
+*/ 
 enum flex_ue_state_change_type {
      FLUESC_UPDATED = 0;
      FLUESC_ACTIVATED = 1;

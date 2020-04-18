@@ -10,18 +10,18 @@ message flex_cell_config {
 	optional uint32 phy_cell_id = 1;		// The PCI of this cell
 	optional uint32 cell_id = 2;			// The PLMN cell id of this cell
 	optional uint32 pusch_hopping_offset = 3;	// PUSCH resources in RBs for hopping
-	optional uint32 hopping_mode = 4;		// One of the FLHM_* enum values
+	optional flex_hopping_mode hopping_mode = 4;	// Frequency hopping mode. One of the FLHM_* enum values
 	optional uint32 n_sb = 5;			// The number of subbands
-	optional uint32 phich_resource = 6;		// The number of REGs used for PHICH. One of the FLPR_* enum values
-	optional uint32 phich_duration = 7;		// One of the FLPD_* enum values
+	optional flex_phich_resource phich_resource = 6;		// The number of REGs used for PHICH. One of the FLPR_* enum values
+	optional flex_phich_duration phich_duration = 7;// PHICH duration type. One of the FLPD_* enum values
 	optional uint32 init_nr_PDCCH_OFDM_sym = 8; 	// See TS 36.211, section 6.9
 	optional flex_si_config si_config = 9;	 	// The SI configuration
 	optional uint32 dl_bandwidth = 10;		// The DL transmission bandwidth in RBs
 	optional uint32 ul_bandwidth = 11;		// The UL transmission bandwidth in RBs
-	optional uint32 ul_cyclic_prefix_length = 13;	// One of the FLUCPL_* enum values
-	optional uint32 dl_cyclic_prefix_length = 14;	// One of the FLDCPL_* enum values
+	optional flex_ul_cyclic_prefix_length ul_cyclic_prefix_length = 13;// One of the FLUCPL_* enum values
+	optional flex_dl_cyclic_prefix_length dl_cyclic_prefix_length = 14;// One of the FLDCPL_* enum values
 	optional uint32 antenna_ports_count = 15;	// Number of cell specific antenna ports
-	optional uint32 duplex_mode = 16;		// One of the FLDM_* enum values
+	optional flex_duplex_mode duplex_mode = 16;	// One of the FLDM_* enum values
 	optional uint32 subframe_assignment = 17;	// DL/UL subframe assignment. TDD only
 	optional uint32	special_subframe_patterns = 18; // TDD only. See TS 36.211, table 4.2.1
 	repeated uint32 mbsfn_subframe_config_rfperiod = 19; // The MBSFN radio frame period (Optional)
@@ -38,7 +38,7 @@ message flex_cell_config {
 	optional uint32 srs_subframe_config = 30;	// See TS 36.211, table 5.5.3.3-1 and 2
 	optional uint32 srs_bw_config = 31;		// See TS 36.211, section 5.5.3.2
 	optional uint32 srs_mac_up_pts = 32;		// Boolean value. See TS 36.211, section 5.5.3.2. TDD only
-	optional uint32 enable_64QAM = 33;		// One of the FLEQ_* enum values
+	optional flex_qam enable_64QAM = 33;		// One of the FLEQ_* enum values
 	optional uint32 carrier_index = 34;		// Carrier component index
 	optional uint32 dl_freq = 35;        // operating downlink frequency
 	optional uint32 ul_freq = 36;       // operating uplink frequency 
@@ -57,18 +57,18 @@ message flex_slice_config {
 	optional bool   intraslice_share_active = 3;
 	// whether remaining RBs after slice allocation will be allocated to UEs of another slice. Isolated slices will be ignored.
 	optional bool   interslice_share_active = 4;
-	repeated flex_dl_slice dl = 1;
-	repeated flex_ul_slice ul = 2;
+	repeated flex_dl_slice dl = 1; // Downlink slice configuration
+	repeated flex_ul_slice ul = 2; // Uplink slice configuration
 }
 
 /**
  * UE configuration message
  */
 message flex_ue_config {
-	optional uint32 rnti = 1;
-	optional flex_drx_config drx_config = 2;		// The DRX configuration (Optional)
+	optional uint32 rnti = 1;            // UE Radio Network Temporary Identifier      
+	optional flex_drx_config drx_config = 2;	// The DRX configuration (Optional)
 	optional uint32 time_alignment_timer = 3;	// Timer in SF. Control the synchronization. Status of the UE, not the actual advance procedure. See TS 36.321
-	optional uint32 meas_gap_config_pattern = 4;	// Measurement gap configuration. One of the FLMGCP_* enum values.  See TS 36.133
+	optional flex_meas_gap_config_pattern meas_gap_config_pattern = 4; // Measurement gap configuration. One of the FLMGCP_* enum values.  See TS 36.133
 	optional uint32 meas_gap_config_sf_offset = 5;	// Measurement gap offset if applicable
 	optional flex_sps_config sps_config = 6;	    	// The SPS configuration (Optional)
 	optional flex_sr_config sr_config = 7;		// The SR configuration (Optional)
@@ -76,8 +76,8 @@ message flex_ue_config {
 	optional uint32 transmission_mode = 9;		// The UE transmission mode
 	optional uint64 ue_aggregated_max_bitrate_UL = 10; // Aggregated bit-rate of non-gbr bearer per UE. See TS 36.413
 	optional uint64 ue_aggregated_max_bitrate_DL = 11; // Aggregated bit-rate of non-gbr bearer per UE. See TS 36.413
-	optional flex_ue_capabilities capabilities = 12;
-	optional uint32 ue_transmission_antenna = 13;	// One of the FLUTA_* enum values
+	optional flex_ue_capabilities capabilities = 12; // UE capability information
+	optional flex_ue_transmission_antenna ue_transmission_antenna = 13;// One of the FLUTA_* enum values
 	optional uint32 tti_bundling = 14;		// Boolean value. See TS 36.321
 	optional uint32 max_HARQ_tx = 15;		// The max HARQ retransmission for UL
 	optional uint32 beta_offset_ACK_index = 16; 	// See TS 36.213
@@ -85,8 +85,8 @@ message flex_ue_config {
 	optional uint32 beta_offset_CQI_index = 18;	// See TS 36.213
 	optional uint32 ack_nack_simultaneous_trans = 19;// Boolean. See TS 36.213
 	optional uint32 simultaneous_ack_nack_cqi = 20; // Boolean. See TS 36.213
-	optional uint32 aperiodic_cqi_rep_mode = 21;    // One of the FLACRM_* enum values
-	optional uint32 tdd_ack_nack_feedback = 22;     // One of the FLTANFM_* enum values
+	optional flex_aperiodic_cqi_report_mode aperiodic_cqi_rep_mode = 21;    // CQI report mode. One of the FLACRM_* enum values
+	optional flex_tdd_ack_nack_feedback_mode tdd_ack_nack_feedback = 22;     // ACK/NACK feedback mode. One of the FLTANFM_* enum values
 	optional uint32 ack_nack_repetition_factor = 23;// See TS 36.213, section 10.1
 	optional uint32 extended_bsr_size = 24;	     	// Boolean for extended BSR size
 	optional uint32 ca_support = 25;    		// Boolean. Support for carrier aggregation
@@ -94,16 +94,16 @@ message flex_ue_config {
 	optional uint32 pcell_carrier_index = 27;     // Index of primary cell
 	repeated flex_scell_config scell_config = 28;  // Secondary cells configuration
 	optional uint32 scell_deactivation_timer = 29;// Deactivation timer for secondary cell
-	optional uint64 imsi = 30;
-	optional uint32 dl_slice_id = 31;
-	optional uint32 ul_slice_id = 32;
+	optional uint64 imsi = 30;         // UE International mobile subscriber identity
+	optional uint32 dl_slice_id = 31;  // Downlink slice identifier 
+	optional uint32 ul_slice_id = 32;  // Uplink slice identifier 
 }
 
 /**
  * UE logical channel configuration message
  */
 message flex_lc_ue_config {
-	optional uint32 rnti = 1;
+	optional uint32 rnti = 1;   // UE Radio Network Temporary Identifier      
 	repeated flex_lc_config lc_config = 2;	// A list of LC configurations for the given UE
 }
 

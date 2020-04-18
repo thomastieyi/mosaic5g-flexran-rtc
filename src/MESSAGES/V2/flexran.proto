@@ -7,9 +7,11 @@ import "time_common.proto";
 import "config_messages.proto";
 import "controller_commands.proto";
 import "control_delegation.proto";
+import "config_common.proto";
 
 /**
- * FlexRAN Control protocol
+ * FlexRAN Control protocol Specification describes the communication protocol between the controller and the eNBs/gNBs.
+ * All the messages presented here will also be defined in the Google Protocol Buffers format so that they can be cross-platform to ease development and experimentation.
 */
 message flexran_message {
        optional flexran_direction msg_dir = 100; // FlexRAN message direction
@@ -43,9 +45,9 @@ message flexran_message {
 enum flexran_direction {
      //option allow_alias = true;
      NOT_SET = 0;
-     INITIATING_MESSAGE = 1;
-     SUCCESSFUL_OUTCOME=2;
-     UNSUCCESSFUL_OUTCOME=3;	
+     INITIATING_MESSAGE = 1; // Indicates the first message from the sender
+     SUCCESSFUL_OUTCOME=2;   // Indicates a successful reception of the message by the receiver 
+     UNSUCCESSFUL_OUTCOME=3;   // Indicates an unsuccessful reception of the message by the receiver 
 }
 
 /**
@@ -53,7 +55,6 @@ enum flexran_direction {
  */
 enum flexran_err {
         //option allow_alias = true;
-	// message errors
 	NO_ERR = 0;	
 	MSG_DEQUEUING = -1;
 	MSG_ENQUEUING = -2;
@@ -92,7 +93,7 @@ message flex_echo_request {
  * FlexRAN protocol echo reply message  
  */
 message flex_echo_reply {
-	optional flex_header header = 1;
+	optional flex_header header = 1; // FlexRAN protocol message header
 	extensions 100 to 199;
 }
 
@@ -101,12 +102,12 @@ message flex_echo_reply {
 * Statistics request message for both cell and UE
 */
 message flex_stats_request {
-	optional flex_header header = 1;
-	optional flex_stats_type type = 2;
+	optional flex_header header = 1; // FlexRAN protocol message header
+	optional flex_stats_type type = 2; // type of stats to request 
 	oneof body {
-	      flex_complete_stats_request complete_stats_request = 3;
-	      flex_cell_stats_request cell_stats_request = 4;
-	      flex_ue_stats_request ue_stats_request = 5;
+	      flex_complete_stats_request complete_stats_request = 3; // Request eNB/gNB to send a complete stats spanning the entire protocol stack 
+	      flex_cell_stats_request cell_stats_request = 4; // Request eNB/gNB to send cell stats spanning the entire protocol stack
+	      flex_ue_stats_request ue_stats_request = 5;  // Request eNB/gNB to send UE stats spanning the entire protocol stack
 	}
 }
 
@@ -115,35 +116,35 @@ message flex_stats_request {
 * Statistics reply message 
 */
 message flex_stats_reply {
-	optional flex_header header = 1;
-	repeated flex_ue_stats_report ue_report = 2;
-	repeated flex_cell_stats_report cell_report = 3;
+	optional flex_header header = 1; // FlexRAN protocol message header
+	repeated flex_ue_stats_report ue_report = 2; // UE stats report/reply
+	repeated flex_cell_stats_report cell_report = 3 ;// Cell stats report/reply
 }
 
 /**
  * subframe indication messages
  */
 message flex_sf_trigger {
-	optional flex_header header = 1;
-	optional uint32 sfn_sf = 2;
-	repeated flex_dl_info dl_info = 3;
-	repeated flex_ul_info ul_info = 4;	
+	optional flex_header header = 1;  // FlexRAN protocol message header
+	optional uint32 sfn_sf = 2;        //  System frame and subframe number 
+	repeated flex_dl_info dl_info = 3; // Downlink transmission info
+	repeated flex_ul_info ul_info = 4; // Uplink transmission info	
 }
 
 /**
 * UE uplink Scheduling request messages (Asynchronous)
 */
 message flex_ul_sr_info {
-	optional flex_header header = 1;
-	optional uint32 sfn_sf = 2;
-	repeated uint32 rnti = 3;
+	optional flex_header header = 1; // FlexRAN protocol message header
+	optional uint32 sfn_sf = 2; // System frame and subframe number 
+	repeated uint32 rnti = 3;  // UE RNTI 
 }
 
 /**
  * eNB configuration request messages
  */
 message flex_enb_config_request {
-	optional flex_header header = 1;
+	optional flex_header header = 1; // FlexRAN protocol message header
 }
 
 
@@ -152,10 +153,10 @@ message flex_enb_config_request {
  */
 
 message flex_enb_config_reply {
-	optional flex_header header = 1;
+	optional flex_header header = 1; // FlexRAN protocol message header
 	optional uint64 eNB_id = 2;		// Unique id to distinguish the eNB
-	repeated flex_cell_config cell_config = 3;
-        optional uint32 device_spec = 4;
+	repeated flex_cell_config cell_config = 3; // Cell main configuration parameteres  
+        optional uint32 device_spec = 4; // 
 }
 
 
@@ -163,7 +164,7 @@ message flex_enb_config_reply {
  * UE configuration request messages
  */
 message flex_ue_config_request {
-	optional flex_header header = 1;
+	optional flex_header header = 1; // FlexRAN protocol message header
 }
 
 
@@ -171,8 +172,8 @@ message flex_ue_config_request {
  * UE configuration reply messages
  */
 message flex_ue_config_reply {
-	optional flex_header header = 1;
-	repeated flex_ue_config ue_config = 2;
+	optional flex_header header = 1; // FlexRAN protocol message header
+	repeated flex_ue_config ue_config = 2; // UE configuration information
 }
 
 
@@ -181,15 +182,15 @@ message flex_ue_config_reply {
  */
  
 message flex_lc_config_request {
-	optional flex_header header = 1;
+	optional flex_header header = 1;// FlexRAN protocol message header
 }
 
 /**
  * UE logical channel configuration reply messages
  */
 message flex_lc_config_reply {
-	optional flex_header header = 1;
-	repeated flex_lc_ue_config lc_ue_config = 2;
+	optional flex_header header = 1;// FlexRAN protocol message header
+	repeated flex_lc_ue_config lc_ue_config = 2; // logical channel configuration information
 }
 
 //Controller command messages
@@ -198,11 +199,11 @@ message flex_lc_config_reply {
  * Downlink MAC config message   
  */
 message flex_dl_mac_config {
-	optional flex_header header = 1;
-	optional uint32 sfn_sf = 2;
-	repeated flex_dl_data dl_ue_data = 3;
-	repeated flex_dl_rar dl_rar = 4;
-	repeated flex_dl_broadcast dl_broadcast = 5;
+	optional flex_header header = 1;// FlexRAN protocol message header
+	optional uint32 sfn_sf = 2; // combined frame and subframe number 
+	repeated flex_dl_data dl_ue_data = 3; // Body of UE DL MAC scheduling configuration info
+	repeated flex_dl_rar dl_rar = 4; // Body of the RAR scheduler configuration
+	repeated flex_dl_broadcast dl_broadcast = 5; // Body of the paging/broadcast configuration message
 	repeated flex_pdcch_ofdm_sym_count ofdm_sym = 6; // OFDM symbol count for each CC
 }
 
@@ -211,9 +212,9 @@ message flex_dl_mac_config {
  * Uplink MAC config message   
  */
 message flex_ul_mac_config {
-	optional flex_header header = 1;
- 	optional uint32 sfn_sf = 2;
-	repeated flex_ul_data ul_ue_data = 3;
+	optional flex_header header = 1; // FlexRAN protocol message header
+ 	optional uint32 sfn_sf = 2; // combined frame and subframe number 
+	repeated flex_ul_data ul_ue_data = 3; // Body of UE UL scheduling info including DCI (Downlink Control Info)
 }
 
 
@@ -222,16 +223,16 @@ message flex_ul_mac_config {
  */
 message flex_rrc_triggering {
 
-	optional flex_header header = 1;
-	optional string rrc_trigger = 2;	
+	optional flex_header header = 1; // FlexRAN protocol message header
+	optional string rrc_trigger = 2; // RRC measurement report triggering message	
 }
 
 /**
 * UE state change message
 */
 message flex_ue_state_change {
-	optional flex_header header = 1;
-	optional uint32 type = 2;		// One of the FLUESC_* values
+	optional flex_header header = 1;// FlexRAN protocol message header
+	optional flex_ue_state_change_type type = 2;// Bitmap flag indicating current UE state. One of the FLUESC_* values
 	optional flex_ue_config config = 3;	// Body of the message (based on type)
 }
 
@@ -239,18 +240,18 @@ message flex_ue_state_change {
 * Control delegation message
 */
 message flex_control_delegation {
-	optional flex_header header = 1;
-	optional uint32 delegation_type = 2;	// Bitmap of FLCDT_* flags
-	optional bytes payload = 3;	  	// Byte array of shared lib containing the delegated functions
-	optional string name = 4;		// The delegated functions names ordered based on bitmap flags
+	optional flex_header header = 1; // FlexRAN protocol message header
+	optional flex_control_delegation_type delegation_type = 2;	// Bitmap flags indicating control delegation type. One of the FLCDT_* values
+	optional bytes payload = 3;// Byte array of shared lib containing the delegated functions
+	optional string name = 4;// The delegated functions names ordered based on bitmap flags
 }
 
 /**
 * Agent reconfiguration message
 */
 message flex_agent_reconfiguration {
-	optional flex_header header = 1;
-	optional string policy = 2;		// The policy changes using YAML syntax in string format    
+	optional flex_header header = 1; // FlexRAN protocol message header
+	optional string policy = 2;     // The policy changes using YAML syntax in string format    
 }
 
 /**
@@ -258,7 +259,7 @@ message flex_agent_reconfiguration {
 */
 message flex_echo_request_latency {
 	extend flex_echo_request {
-	       optional uint32 latency = 100;
+	       optional uint32 latency = 100; 
 	}
 }
 
@@ -275,5 +276,5 @@ message flex_echo_reply_latency {
 * FlexRAN protocol disconnect message 
 */
 message flex_disconnect {
-        optional flex_header header = 1;
+        optional flex_header header = 1; // FlexRAN protocol message header
 }
