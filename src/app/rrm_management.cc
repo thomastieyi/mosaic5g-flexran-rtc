@@ -765,11 +765,16 @@ void flexran::app::management::rrm_management::verify_nvs_slice_configuration(
     const protocol::flex_slice_config& c)
 {
   auto f = [](const protocol::flex_slice& s) {
-    return s.has_id() && s.has_nvs() && s.nvs().type_case() != protocol::flex_slice_nvs::TYPE_NOT_SET;
+    return s.has_id() && s.has_nvs();
   };
   if (!std::all_of(c.dl().begin(), c.dl().end(), f)
       || !std::all_of(c.ul().begin(), c.ul().end(), f))
     throw std::invalid_argument("all slices need to have an ID and parameters");
+  auto p = [](const protocol::flex_slice& s) {
+    return s.nvs().has_pct_reserved()
+      || (s.nvs().has_rate() && s.nvs().rate().has_kps_required() && s.nvs().rate().has_kps_reference()); };
+  if (!std::all_of(c.dl().begin(), c.dl().end(), p))
+    throw std::invalid_argument("all slices need to have complete parameters");
 }
 
 protocol::flex_slice_config
