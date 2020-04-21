@@ -325,7 +325,7 @@ void flexran::app::management::rrm_management::apply_slice_config_policy(
 
   const auto bs = rib_.get_bs(bs_id);
   if (!slice_config.has_algorithm())
-    throw std::invalid_argument("no algorithm in slice config");
+    slice_config.set_algorithm(bs->get_enb_config().cell_config(0).slice_config().algorithm());
   if (slice_config.algorithm() == protocol::flex_slice_algorithm::None
       && (slice_config.dl_size() > 0 || slice_config.ul_size() > 0))
     throw std::invalid_argument("no slice algorithm, but slices present");
@@ -354,6 +354,9 @@ void flexran::app::management::rrm_management::apply_slice_config_policy(
       verify_scn19_slice_configuration(slice_config);
   }
 
+  bool algo_change = bs->get_enb_config().cell_config(0).slice_config().algorithm()
+                     != slice_config.algorithm();
+
   protocol::flex_cell_config cell_config;
   cell_config.mutable_slice_config()->CopyFrom(slice_config);
   push_cell_config_reconfiguration(bs_id, cell_config);
@@ -363,6 +366,33 @@ void flexran::app::management::rrm_management::apply_slice_config_policy(
   google::protobuf::util::MessageToJsonString(slice_config, &pol_corrected, opt);
   LOG4CXX_INFO(flog::app, "sent new configuration to BS " << bs_id
       << ":\n" << pol_corrected);
+
+  if (!algo_change)
+    return;
+  /* if there is an algorithm change, try to preserve the UE-slice association:
+   * Go through all UEs and check whether the slice exists, then associate */
+  protocol::flex_ue_config_reply ue_config_reply;
+  for (const auto& ue : bs->get_ue_configs().ue_config()) {
+    uint32_t did = ue.has_dl_slice_id() ? ue.dl_slice_id() : 0;
+    uint32_t uid = ue.has_ul_slice_id() ? ue.ul_slice_id() : 0;
+    if (!std::any_of(slice_config.dl().begin(), slice_config.dl().end(),
+          [did] (const protocol::flex_slice& s) { return s.id() == did; }))
+      did = 0;
+    if (!std::any_of(slice_config.ul().begin(), slice_config.ul().end(),
+          [uid] (const protocol::flex_slice& s) { return s.id() == uid; }))
+      uid = 0;
+    if (did != 0 || uid != 0) { // only send if it makes sense
+      auto *c = ue_config_reply.add_ue_config();
+      c->set_rnti(ue.rnti());
+      c->set_dl_slice_id(did);
+      c->set_ul_slice_id(uid);
+    }
+  }
+  push_ue_config_reconfiguration(bs_id, ue_config_reply);
+  std::string ue_policy;
+  google::protobuf::util::MessageToJsonString(ue_config_reply, &ue_policy, opt);
+  LOG4CXX_INFO(flog::app, "sent new UE configuration to BS "
+      << bs_id << ":\n" << ue_policy);
 }
 
 void flexran::app::management::rrm_management::remove_slice(
