@@ -332,6 +332,8 @@ void flexran::app::management::rrm_management::apply_slice_config_policy(
     verify_static_slice_configuration(slice_config);
   if (slice_config.algorithm() == protocol::flex_slice_algorithm::NVS)
     verify_nvs_slice_configuration(slice_config);
+  if (slice_config.algorithm() == protocol::flex_slice_algorithm::SCN19)
+    verify_scn19_slice_configuration(slice_config);
 
   protocol::flex_cell_config cell_config;
   cell_config.mutable_slice_config()->CopyFrom(slice_config);
@@ -779,6 +781,39 @@ void flexran::app::management::rrm_management::verify_nvs_slice_configuration(
 
 protocol::flex_slice_config
 flexran::app::management::rrm_management::transform_to_nvs_slice_configuration(
+    const protocol::flex_slice_config& c)
+{
+  throw std::invalid_argument(std::string(__func__) + "() not implemented yet");
+  protocol::flex_slice_config nc;
+  return nc;
+}
+
+void flexran::app::management::rrm_management::verify_scn19_slice_configuration(
+    const protocol::flex_slice_config& c)
+{
+  auto f = [](const protocol::flex_slice& s) {
+    return s.has_id() && s.has_scn19();
+  };
+  if (!std::all_of(c.dl().begin(), c.dl().end(), f)
+      || !std::all_of(c.ul().begin(), c.ul().end(), f))
+    throw std::invalid_argument("all slices need to have an ID and parameters");
+  auto p = [](const protocol::flex_slice& s) {
+    return (s.scn19().has_dynamic()
+            && s.scn19().dynamic().has_kbps_required()
+            && s.scn19().dynamic().has_kbps_reference())
+        || (s.scn19().has_fixed()
+            && s.scn19().fixed().has_poslow()
+            && s.scn19().fixed().has_poshigh())
+        || (s.scn19().has_ondemand()
+            && s.scn19().ondemand().has_pct_reserved()
+            && s.scn19().ondemand().has_tau()
+            && s.scn19().ondemand().has_log_delta()); };
+  if (!std::all_of(c.dl().begin(), c.dl().end(), p))
+    throw std::invalid_argument("all slices need to have complete parameters");
+}
+
+protocol::flex_slice_config
+flexran::app::management::rrm_management::transform_to_scn19_slice_configuration(
     const protocol::flex_slice_config& c)
 {
   throw std::invalid_argument(std::string(__func__) + "() not implemented yet");
