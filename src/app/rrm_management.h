@@ -80,14 +80,17 @@ namespace flexran {
 
         void verify_static_slice_configuration(const protocol::flex_slice_config& c);
         protocol::flex_slice_config transform_to_static_slice_configuration(
+            const std::shared_ptr<flexran::rib::enb_rib_info> bs,
             const protocol::flex_slice_config& c);
 
         void verify_nvs_slice_configuration(const protocol::flex_slice_config& c);
         protocol::flex_slice_config transform_to_nvs_slice_configuration(
+            const std::shared_ptr<flexran::rib::enb_rib_info> bs,
             const protocol::flex_slice_config& c);
 
         void verify_scn19_slice_configuration(const protocol::flex_slice_config& c);
         protocol::flex_slice_config transform_to_scn19_slice_configuration(
+            const std::shared_ptr<flexran::rib::enb_rib_info> bs,
             const protocol::flex_slice_config& c);
 
         static bool verify_cell_config_for_restart(const protocol::flex_cell_config& c,

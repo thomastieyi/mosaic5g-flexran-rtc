@@ -309,11 +309,11 @@ void flexran::app::management::rrm_management::reconfigure_agent_string(
 }
 
 void flexran::app::management::rrm_management::apply_slice_config_policy(
-    const std::string& bs, const std::string& policy)
+    const std::string& bs_, const std::string& policy)
 {
-  uint64_t bs_id = rib_.parse_bs_id(bs);
+  uint64_t bs_id = rib_.parse_bs_id(bs_);
   if (bs_id == 0)
-    throw std::invalid_argument("BS " + bs + " does not exist");
+    throw std::invalid_argument("BS " + bs_ + " does not exist");
 
   protocol::flex_slice_config slice_config;
   auto ret = google::protobuf::util::JsonStringToMessage(policy, &slice_config,
@@ -323,17 +323,36 @@ void flexran::app::management::rrm_management::apply_slice_config_policy(
     throw std::invalid_argument("Protobuf parser error");
   }
 
+  const auto bs = rib_.get_bs(bs_id);
   if (!slice_config.has_algorithm())
     throw std::invalid_argument("no algorithm in slice config");
   if (slice_config.algorithm() == protocol::flex_slice_algorithm::None
       && (slice_config.dl_size() > 0 || slice_config.ul_size() > 0))
     throw std::invalid_argument("no slice algorithm, but slices present");
-  if (slice_config.algorithm() == protocol::flex_slice_algorithm::Static)
-    verify_static_slice_configuration(slice_config);
-  if (slice_config.algorithm() == protocol::flex_slice_algorithm::NVS)
-    verify_nvs_slice_configuration(slice_config);
-  if (slice_config.algorithm() == protocol::flex_slice_algorithm::SCN19)
-    verify_scn19_slice_configuration(slice_config);
+  if (slice_config.algorithm() == protocol::flex_slice_algorithm::Static) {
+    /* if no DL/UL slices are specified, auto-generate the new configuration */
+    if (slice_config.dl_size() == 0 && slice_config.ul_size() == 0)
+      slice_config = transform_to_static_slice_configuration(
+          bs, bs->get_enb_config().cell_config(0).slice_config());
+    else
+      verify_static_slice_configuration(slice_config);
+  }
+  if (slice_config.algorithm() == protocol::flex_slice_algorithm::NVS) {
+    /* if no DL/UL slices are specified, auto-generate the new configuration */
+    if (slice_config.dl_size() == 0 && slice_config.ul_size() == 0)
+      slice_config = transform_to_nvs_slice_configuration(
+          bs, bs->get_enb_config().cell_config(0).slice_config());
+    else
+      verify_nvs_slice_configuration(slice_config);
+  }
+  if (slice_config.algorithm() == protocol::flex_slice_algorithm::SCN19) {
+    /* if no DL/UL slices are specified, auto-generate the new configuration */
+    if (slice_config.dl_size() == 0 && slice_config.ul_size() == 0)
+      slice_config = transform_to_scn19_slice_configuration(
+          bs, bs->get_enb_config().cell_config(0).slice_config());
+    else
+      verify_scn19_slice_configuration(slice_config);
+  }
 
   protocol::flex_cell_config cell_config;
   cell_config.mutable_slice_config()->CopyFrom(slice_config);
@@ -751,16 +770,70 @@ void flexran::app::management::rrm_management::
       || !std::all_of(c.ul().begin(), c.ul().end(), f))
     throw std::invalid_argument("all slices need to have an ID and parameters");
 
-  /* TODO: perform admission control */
+  auto p = [](const protocol::flex_slice& s) {
+    return (s.has_static_() && s.static_().has_poslow() && s.static_().has_poshigh()); };
+  if (!std::all_of(c.dl().begin(), c.dl().end(), p))
+    throw std::invalid_argument("all slices need to have complete parameters");
 }
 
 protocol::flex_slice_config flexran::app::management::rrm_management::
     transform_to_static_slice_configuration(
+        const std::shared_ptr<flexran::rib::enb_rib_info> bs,
         const protocol::flex_slice_config& c)
 {
-  throw std::invalid_argument(std::string(__func__) + "() not implemented yet");
+  const uint32_t bw = bs->get_enb_config().cell_config(0).dl_bandwidth();
+  if (bw != 100 && bw != 50 && bw !=25)
+    throw std::invalid_argument("cannot transform slice configuration for BW "
+                                + std::to_string(bw));
+  const uint32_t RBGsize = bw == 100 ? 4 : (50 ? 3 : 2);
+  const uint32_t RBGs = (float) (bw + (bw % RBGsize)) / RBGsize;
+
   protocol::flex_slice_config nc;
-  return nc;
+  nc.set_algorithm(protocol::flex_slice_algorithm::Static);
+  switch (c.algorithm()) {
+    case protocol::flex_slice_algorithm::None:
+      return nc;
+    case protocol::flex_slice_algorithm::Static:
+      return c;
+    case protocol::flex_slice_algorithm::NVS: {
+        uint32_t start = 0;
+        for (const protocol::flex_slice& dl: c.dl()) {
+          const auto& nvs_ = dl.nvs();
+          const float p = nvs_.has_pct_reserved() ?
+              nvs_.pct_reserved() :
+              (float) nvs_.rate().kps_required() / nvs_.rate().kps_reference();
+          const uint32_t len = std::round(p * RBGs);
+          if (len == 0)
+            throw std::invalid_argument("cannot approximate percentage "
+                + std::to_string(p) + " in RBGs");
+
+          protocol::flex_slice_static *static_(new protocol::flex_slice_static);
+          static_->set_poslow(start);
+          static_->set_poshigh(start + len - 1);
+          nc.add_dl()->set_allocated_static_(static_);
+        }
+        for (const protocol::flex_slice& ul: c.ul()) {
+          const auto& nvs_ = ul.nvs();
+          const float p = nvs_.has_pct_reserved() ?
+              nvs_.pct_reserved() :
+              (float) nvs_.rate().kps_required() / nvs_.rate().kps_reference();
+          const uint32_t len = std::round(p * RBGs);
+          if (len == 0)
+            throw std::invalid_argument("cannot approximate percentage "
+                + std::to_string(p) + " in RBGs");
+
+          protocol::flex_slice_static *static_(new protocol::flex_slice_static);
+          static_->set_poslow(start);
+          static_->set_poshigh(start + len - 1);
+          nc.add_ul()->set_allocated_static_(static_);
+        }
+      }
+      return c;
+    case protocol::flex_slice_algorithm::SCN19:
+      throw std::invalid_argument("transformation SCN19 -> Static not implemented yet");
+    default:
+      throw std::invalid_argument("transformation from unknown slice algorithm");
+  }
 }
 
 void flexran::app::management::rrm_management::verify_nvs_slice_configuration(
@@ -781,11 +854,37 @@ void flexran::app::management::rrm_management::verify_nvs_slice_configuration(
 
 protocol::flex_slice_config
 flexran::app::management::rrm_management::transform_to_nvs_slice_configuration(
+    const std::shared_ptr<flexran::rib::enb_rib_info> bs,
     const protocol::flex_slice_config& c)
 {
-  throw std::invalid_argument(std::string(__func__) + "() not implemented yet");
+  const uint32_t bw = bs->get_enb_config().cell_config(0).dl_bandwidth();
+  if (bw != 100 && bw != 50 && bw !=25)
+    throw std::invalid_argument("cannot transform slice configuration for BW "
+                                + std::to_string(bw));
+  const uint32_t RBGsize = bw == 100 ? 4 : (50 ? 3 : 2);
+  const uint32_t RBGs = (float) (bw + (bw % RBGsize)) / RBGsize;
+
   protocol::flex_slice_config nc;
-  return nc;
+  nc.set_algorithm(protocol::flex_slice_algorithm::NVS);
+  switch (c.algorithm()) {
+    case protocol::flex_slice_algorithm::None:
+      return nc;
+    case protocol::flex_slice_algorithm::Static: {
+        for (const protocol::flex_slice& dl: c.dl()) {
+          const float p = (dl.static_().poshigh() + 1 - dl.static_().poslow()) / RBGs;
+          protocol::flex_slice_nvs *nvs_(new protocol::flex_slice_nvs);
+          nvs_->set_pct_reserved(p);
+          nc.add_dl()->set_allocated_nvs(nvs_);
+        }
+      }
+      return c;
+    case protocol::flex_slice_algorithm::NVS:
+      return c;
+    case protocol::flex_slice_algorithm::SCN19:
+      throw std::invalid_argument("transformation SCN19 -> Static not implemented yet");
+    default:
+      throw std::invalid_argument("transformation from unknown slice algorithm");
+  }
 }
 
 void flexran::app::management::rrm_management::verify_scn19_slice_configuration(
@@ -814,6 +913,7 @@ void flexran::app::management::rrm_management::verify_scn19_slice_configuration(
 
 protocol::flex_slice_config
 flexran::app::management::rrm_management::transform_to_scn19_slice_configuration(
+    const std::shared_ptr<flexran::rib::enb_rib_info> bs,
     const protocol::flex_slice_config& c)
 {
   throw std::invalid_argument(std::string(__func__) + "() not implemented yet");
