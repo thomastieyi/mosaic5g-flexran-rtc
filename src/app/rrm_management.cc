@@ -324,8 +324,12 @@ void flexran::app::management::rrm_management::apply_slice_config_policy(
   }
 
   const auto bs = rib_.get_bs(bs_id);
-  if (!slice_config.has_algorithm())
+  if (!slice_config.has_algorithm()) {
     slice_config.set_algorithm(bs->get_enb_config().cell_config(0).slice_config().algorithm());
+  }
+  if (slice_config.algorithm() == bs->get_enb_config().cell_config(0).slice_config().algorithm()
+      && slice_config.dl_size() == 0 && slice_config.ul_size() == 0)
+    return;
   if (slice_config.algorithm() == protocol::flex_slice_algorithm::None
       && (slice_config.dl_size() > 0 || slice_config.ul_size() > 0))
     throw std::invalid_argument("no slice algorithm, but slices present");
@@ -367,8 +371,9 @@ void flexran::app::management::rrm_management::apply_slice_config_policy(
   LOG4CXX_INFO(flog::app, "sent new configuration to BS " << bs_id
       << ":\n" << pol_corrected);
 
-  if (!algo_change)
+  if (!algo_change || bs->get_ue_configs().ue_config_size() == 0)
     return;
+  LOG4CXX_INFO(flog::app, "ue_config_size() " << bs->get_ue_configs().ue_config_size());
   /* if there is an algorithm change, try to preserve the UE-slice association:
    * Go through all UEs and check whether the slice exists, then associate */
   protocol::flex_ue_config_reply ue_config_reply;
@@ -815,7 +820,7 @@ protocol::flex_slice_config flexran::app::management::rrm_management::
   if (bw != 100 && bw != 50 && bw !=25)
     throw std::invalid_argument("cannot transform slice configuration for BW "
                                 + std::to_string(bw));
-  const uint32_t RBGsize = bw == 100 ? 4 : (50 ? 3 : 2);
+  const uint32_t RBGsize = bw == 100 ? 4 : (bw == 50 ? 3 : 2);
   const uint32_t RBGs = (float) (bw + (bw % RBGsize)) / RBGsize;
 
   protocol::flex_slice_config nc;
@@ -840,7 +845,12 @@ protocol::flex_slice_config flexran::app::management::rrm_management::
           protocol::flex_slice_static *static_(new protocol::flex_slice_static);
           static_->set_poslow(start);
           static_->set_poshigh(start + len - 1);
-          nc.add_dl()->set_allocated_static_(static_);
+          auto *s = nc.add_dl();
+          s->set_allocated_static_(static_);
+          s->set_id(dl.id());
+          if (dl.has_label())
+            s->set_label(dl.label());
+          start += len + 1;
         }
         for (const protocol::flex_slice& ul: c.ul()) {
           const auto& nvs_ = ul.nvs();
@@ -855,10 +865,15 @@ protocol::flex_slice_config flexran::app::management::rrm_management::
           protocol::flex_slice_static *static_(new protocol::flex_slice_static);
           static_->set_poslow(start);
           static_->set_poshigh(start + len - 1);
-          nc.add_ul()->set_allocated_static_(static_);
+          auto *s = nc.add_ul();
+          s->set_allocated_static_(static_);
+          s->set_id(ul.id());
+          if (ul.has_label())
+            s->set_label(ul.label());
+          start += len + 1;
         }
       }
-      return c;
+      return nc;
     case protocol::flex_slice_algorithm::SCN19:
       throw std::invalid_argument("transformation SCN19 -> Static not implemented yet");
     default:
@@ -891,8 +906,8 @@ flexran::app::management::rrm_management::transform_to_nvs_slice_configuration(
   if (bw != 100 && bw != 50 && bw !=25)
     throw std::invalid_argument("cannot transform slice configuration for BW "
                                 + std::to_string(bw));
-  const uint32_t RBGsize = bw == 100 ? 4 : (50 ? 3 : 2);
-  const uint32_t RBGs = (float) (bw + (bw % RBGsize)) / RBGsize;
+  const uint32_t RBGsize = bw == 100 ? 4 : (bw == 50 ? 3 : 2);
+  const uint32_t RBGs = (bw + (bw % RBGsize)) / RBGsize;
 
   protocol::flex_slice_config nc;
   nc.set_algorithm(protocol::flex_slice_algorithm::NVS);
@@ -901,13 +916,29 @@ flexran::app::management::rrm_management::transform_to_nvs_slice_configuration(
       return nc;
     case protocol::flex_slice_algorithm::Static: {
         for (const protocol::flex_slice& dl: c.dl()) {
-          const float p = (dl.static_().poshigh() + 1 - dl.static_().poslow()) / RBGs;
+          const float p = (float) (dl.static_().poshigh() + 1 - dl.static_().poslow()) / RBGs;
+          LOG4CXX_INFO(flog::app, "H " << dl.static_().poshigh() << " L " << dl.static_().poslow() << " D " 
+              << dl.static_().poshigh() + 1 - dl.static_().poslow() << " P " << p << " RBGs " << RBGs);
           protocol::flex_slice_nvs *nvs_(new protocol::flex_slice_nvs);
           nvs_->set_pct_reserved(p);
-          nc.add_dl()->set_allocated_nvs(nvs_);
+          auto *s = nc.add_dl();
+          s->set_allocated_nvs(nvs_);
+          s->set_id(dl.id());
+          if (dl.has_label())
+            s->set_label(dl.label());
+        }
+        for (const protocol::flex_slice& ul: c.ul()) {
+          const float p = (float) (ul.static_().poshigh() + 1 - ul.static_().poslow()) / bw;
+          protocol::flex_slice_nvs *nvs_(new protocol::flex_slice_nvs);
+          nvs_->set_pct_reserved(p);
+          auto *s = nc.add_ul();
+          s->set_allocated_nvs(nvs_);
+          s->set_id(ul.id());
+          if (ul.has_label())
+            s->set_label(ul.label());
         }
       }
-      return c;
+      return nc;
     case protocol::flex_slice_algorithm::NVS:
       return c;
     case protocol::flex_slice_algorithm::SCN19:
@@ -946,7 +977,17 @@ flexran::app::management::rrm_management::transform_to_scn19_slice_configuration
     const std::shared_ptr<flexran::rib::enb_rib_info> bs,
     const protocol::flex_slice_config& c)
 {
-  throw std::invalid_argument(std::string(__func__) + "() not implemented yet");
   protocol::flex_slice_config nc;
-  return nc;
+  nc.set_algorithm(protocol::flex_slice_algorithm::SCN19);
+  switch (c.algorithm()) {
+    case protocol::flex_slice_algorithm::None:
+      return nc;
+    case protocol::flex_slice_algorithm::SCN19:
+      return c;
+    case protocol::flex_slice_algorithm::Static:
+    case protocol::flex_slice_algorithm::NVS:
+      throw std::invalid_argument("transformation from Static to NVS not implemented yet");
+    default:
+      throw std::invalid_argument("transformation from unknown slice algorithm");
+  }
 }

@@ -4,33 +4,27 @@
     {
       "id": 0,
       "nvs": {
-        "pctReserved": 0.2
-      }
-    },
-    {
-      "id": 1,
-      "label": "video",
-      "nvs": {
         "rate": {
-          "kps_required" : 4500,
-          "kps_reference" : 17000
+          "kps_required": 500,
+          "kps_reference": 17000
         }
       }
     },
     {
-      "id": 5,
-      "label": "resource_special",
+      "id": 3,
       "nvs": {
-        "pct_reserved": 0.5
+        "rate": {
+          "kps_required": 6500,
+          "kps_reference": 17000
+        }
       }
     },
     {
-      "id": 13,
-      "label": "audio",
+      "id": 12,
       "nvs": {
         "rate": {
-          "kps_required" : 500,
-          "kps_reference" : 17000
+          "kps_required": 10000,
+          "kps_reference": 17000
         }
       }
     }

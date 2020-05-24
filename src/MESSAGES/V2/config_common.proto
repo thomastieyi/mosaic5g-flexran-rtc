@@ -90,7 +90,7 @@ message flex_slice_scn19 {
     optional uint32 kbps_reference = 2;
   }
   message scn19_ondemand {
-    optional uint32 pct_reserved = 1;
+    optional float pct_reserved = 1;
     optional uint32 tau = 2;
     optional uint32 log_delta = 3;
   }

@@ -5,23 +5,14 @@
       "id": 0,
       "static": {
         "posLow": 0,
-        "posHigh": 5
+        "posHigh": 2
       }
     },
     {
-      "id": 1,
+      "id": 3,
       "static": {
-        "posLow": 6,
-        "posHigh": 6
-      }
-    }
-  ],
-  "ul": [
-    {
-      "id": 0,
-      "static": {
-        "posLow": 0,
-        "posHigh": 10
+        "posLow": 3,
+        "posHigh": 12
       }
     }
   ]
