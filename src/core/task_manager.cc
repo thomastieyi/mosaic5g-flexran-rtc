@@ -26,7 +26,6 @@
 #include <thread>
 #include <unistd.h>
 #include <iostream>
-#include <boost/thread/barrier.hpp>
 
 #include "task_manager.h"
 #include "flexran_log.h"
@@ -46,10 +45,12 @@ extern std::atomic_bool g_exit_controller;
 #endif
 
 extern std::atomic_bool g_doprof;
+extern std::chrono::time_point<std::chrono::steady_clock> start;
 #endif
 
-flexran::core::task_manager::task_manager(flexran::rib::rib_updater& r_updater)
-  : rt_task(Policy::FIFO, 80), r_updater_(r_updater) {
+flexran::core::task_manager::task_manager(flexran::rib::rib_updater& r_updater,
+    flexran::event::subscription& ev)
+  : rt_task(Policy::FIFO, 80), r_updater_(r_updater), event_sub_(ev) {
   struct itimerspec its;
   
   sfd = timerfd_create(CLOCK_MONOTONIC, 0);
@@ -69,15 +70,9 @@ void flexran::core::task_manager::run() {
   manage_rt_tasks();
 }
 
-void flexran::core::task_manager::manage_rt_tasks() {
-  // create a barrier for all apps plus the task manager
-  std::shared_ptr<boost::barrier> app_sync_barrier = std::make_shared<boost::barrier>(apps_.size() + 1);
-  std::vector<std::thread> running_apps;
-  for (auto& app: apps_) {
-    app->set_app_sync_barrier(app_sync_barrier);
-    running_apps.push_back(std::thread(&flexran::app::component::execute_task, app));
-  }
-
+void flexran::core::task_manager::manage_rt_tasks()
+{
+  uint64_t t = 0;
   std::chrono::steady_clock::time_point loop_start;
   std::chrono::duration<float, std::micro> loop_dur;
 #ifdef PROFILE
@@ -85,7 +80,7 @@ void flexran::core::task_manager::manage_rt_tasks() {
   std::chrono::duration<float, std::micro> rib_dur, app_dur, inter_dur;
 
   std::unique_ptr<std::stringstream> ss(nullptr);
-  int rounds = 30000;
+  int rounds = 10000;
   unsigned int processed;
 #endif
 
@@ -106,9 +101,8 @@ void flexran::core::task_manager::manage_rt_tasks() {
     rib_dur = app_start - loop_start;
 #endif
 
-    // Then spawn any registered application and wait for them to finish.
-    app_sync_barrier->wait();
-    app_sync_barrier->wait();
+    event_sub_.task_tick_(t);
+    event_sub_.last_tick_ = t;
 
     loop_dur = std::chrono::steady_clock::now() - loop_start;
     if (loop_dur.count() > 990)
@@ -127,27 +121,17 @@ void flexran::core::task_manager::manage_rt_tasks() {
       rounds--;
       if (rounds == 0) {
         g_doprof = false;
-        rounds = 30000;
-        std::thread t(flexran::core::task_manager::profiler_wb_thread, std::move(ss), apps_.size());
+        rounds = 10000;
+        std::thread t(flexran::core::task_manager::profiler_wb_thread, std::move(ss), event_sub_.task_tick_.num_slots());
         t.detach();
         LOG4CXX_WARN(flog::core, "profiling done");
+        r_updater_.print_prof_results(std::chrono::steady_clock::now() - start);
       }
     }
 #endif
+    t++;
     wait_for_cycle();
   }
-
-  // release all apps
-  for (auto& app: apps_)
-    app->inform_exit();
-  app_sync_barrier->wait();
-  for (auto& thread: running_apps)
-    thread.join();
-}
-
-void flexran::core::task_manager::register_app(const std::shared_ptr<flexran::app::component>& app)
-{
-  apps_.emplace_back(app);
 }
 
 

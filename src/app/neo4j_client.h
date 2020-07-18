@@ -32,7 +32,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "periodic_component.h"
+#include "component.h"
 #include "enb_rib_info.h"
 // #include "component.h"
 // #include "ue_scheduling_info.h"
@@ -46,12 +46,13 @@ namespace flexran {
 
     namespace management {
 
-      class neo4j_client : public periodic_component {
+      class neo4j_client : public component {
 	
       public:	
 	
-    neo4j_client(rib::Rib& rib, const core::requests_manager& rm)
-	  : periodic_component(rib, rm) {}
+        neo4j_client(const rib::Rib& rib, const core::requests_manager& rm,
+            event::subscription& sub)
+          : component(rib, rm, sub) {}
 
 	void update_graph();
 	

@@ -25,90 +25,160 @@
 
 #include <iostream>
 #include <algorithm>
-
+#include <stdexcept>
 
 #include <google/protobuf/util/json_util.h>
-
+#include <google/protobuf/reflection.h>
 
 #include "enb_rib_info.h"
 #include "flexran_log.h"
 
 
 
-flexran::rib::enb_rib_info::enb_rib_info(int agent_id)
-  : agent_id_(agent_id) {
+flexran::rib::enb_rib_info::enb_rib_info(uint64_t bs_id,
+    const std::set<std::shared_ptr<agent_info>>& agents)
+  : bs_id_(bs_id),
+    agents_(agents)
+{
   last_checked = st_clock::now();
+  for (auto a: agents) {
+    if (a->bs_id != bs_id_)
+      throw std::runtime_error("invalid bs_id " + std::to_string(a->bs_id)
+          + " from agent " + std::to_string(a->agent_id)
+          + " for BS " + std::to_string(bs_id));
+  }
+  /* TODO check capabilities is complete */
 }
 
-void flexran::rib::enb_rib_info::update_eNB_config(const protocol::flex_enb_config_reply& enb_config_update) {
+void flexran::rib::enb_rib_info::update_eNB_config(
+    const protocol::flex_enb_config_reply& enb_config_update)
+{
+  // we cannot simply call eNB_config_.MergeFrom as this would append repeated
+  // fields (e.g. "PHY agent" has part of flex_cell_config, "RRC agent" has
+  // one, leaving two flex_cell_configs instead of one unified), therefore we
+  // do this independently for every flex_cell_config. In the following, we
+  // also suppose that it is safe to replace(!) repeated fields within a
+  // flex_cell_config, eg. mbsfn_subframe_config_rfperiod
+
+  if (eNB_config_.cell_config_size() > 0
+      && eNB_config_.cell_config_size() != enb_config_update.cell_config_size())
+    LOG4CXX_WARN(flog::rib, __func__ << "(): differing numbers of cell_configs");
+
   eNB_config_mutex_.lock();
-  eNB_config_.CopyFrom(enb_config_update);
+  if (eNB_config_.cell_config_size() == 0) { // saved config is empty
+    eNB_config_.CopyFrom(enb_config_update);
+  } else {
+    const int n = std::min(eNB_config_.cell_config_size(), enb_config_update.cell_config_size());
+    for (int i = 0; i < n; ++i) {
+      protocol::flex_cell_config *dst = eNB_config_.mutable_cell_config(i);
+      const protocol::flex_cell_config& src = enb_config_update.cell_config(i);
+      clear_repeated_if_present(dst, src);
+      /* the above should be recursively going down. ATM, delete complete slice
+       * config if present */
+      if (src.has_slice_config()) dst->clear_slice_config();
+      dst->MergeFrom(src);
+    }
+    eNB_config_.mutable_s1ap()->CopyFrom(enb_config_update.s1ap());
+  }
   eNB_config_mutex_.unlock();
   update_liveness();
 }
 
-void flexran::rib::enb_rib_info::update_UE_config(const protocol::flex_ue_config_reply& ue_config_update) {
-  ue_config_mutex_.lock();
-  ue_config_.CopyFrom(ue_config_update);
-  ue_config_mutex_.unlock();
-  rnti_t rnti;
-  
-  // Check if UE exists and if not create a ue_mac_rib_info entry
-  for (int i = 0; i < ue_config_update.ue_config_size(); i++) {
-    rnti = ue_config_update.ue_config(i).rnti();
-    LOG4CXX_DEBUG(flog::rib, "update UE config for RNTI " << rnti);
-    auto it = ue_mac_info_.find(rnti);
-    if (it == ue_mac_info_.end()) {
-      ue_mac_info_.insert(std::pair<int,
-			  std::shared_ptr<ue_mac_rib_info>>(rnti,
-							    std::shared_ptr<ue_mac_rib_info>(new ue_mac_rib_info(rnti))));
-    }
+void flexran::rib::enb_rib_info::update_UE_config(
+    const protocol::flex_ue_config_reply& ue_config_update)
+{
+  // we cannot simply call ue_config_.MergeFrom as this would append repeated
+  // fields (e.g. "MAC agent" has part of flex_ue_config, "RRC agent" has
+  // one, leaving two flex_ue_configs instead of one unified), therefore we
+  // do this independently for every flex_ue_config. In the following, we
+  // also suppose that it is safe to replace(!) repeated fields within a
+  // flex_ue_config, eg. mbsfn_subframe_config_rfperiod.
+
+
+  if (ue_config_.ue_config_size() != ue_config_update.ue_config_size()) {
+    LOG4CXX_WARN(flog::rib, __func__ << "(): BS " << bs_id_ << ": "
+        << "number of UEs (" << ue_config_update.ue_config_size()
+        << ") in update different than internal state ("
+        << ue_config_.ue_config_size() << ")");
   }
+
+  ue_config_mutex_.lock();
+  for (const protocol::flex_ue_config& src : ue_config_update.ue_config()) {
+    const rnti_t rnti = src.rnti();
+    auto it = std::find_if(ue_config_.mutable_ue_config()->begin(),
+                           ue_config_.mutable_ue_config()->end(),
+        [rnti](protocol::flex_ue_config& c) { return c.rnti() == rnti; });
+    if (it == ue_config_.mutable_ue_config()->end()) // this one does not exist
+      continue;
+    protocol::flex_ue_config *dst = &(*it);
+    clear_repeated_if_present(dst, src);
+    if (src.has_info())
+      clear_repeated_if_present(dst->mutable_info(), src.info());
+    dst->MergeFrom(src);
+  }
+  ue_config_mutex_.unlock();
+
   update_liveness();
 }
 
-void flexran::rib::enb_rib_info::update_UE_config(const protocol::flex_ue_state_change& ue_state_change) {
-  rnti_t rnti;  
+void flexran::rib::enb_rib_info::update_UE_config(
+    const protocol::flex_ue_state_change& ue_state_change)
+{
   // releases itself when leaving scope
-  std::lock_guard<std::mutex> lg(ue_config_mutex_);
-  if (ue_state_change.type() == protocol::FLUESC_ACTIVATED) {
-    protocol::flex_ue_config *c = ue_config_.add_ue_config();
-    c->CopyFrom(ue_state_change.config());
-    rnti = ue_state_change.config().rnti();
-    ue_mac_info_.insert(std::pair<int,
-			std::shared_ptr<ue_mac_rib_info>>(rnti,
-							  std::shared_ptr<ue_mac_rib_info>(new ue_mac_rib_info(rnti))));
-    return;
-  }
-  for (int i = 0; i < ue_config_.ue_config_size(); i++) {
-    rnti = ue_config_.ue_config(i).rnti();
-    if (rnti == ue_state_change.config().rnti()) {
-      // Check if this was updated or removed
-      if (ue_state_change.type() == protocol::FLUESC_DEACTIVATED) {
-	ue_config_.mutable_ue_config()->DeleteSubrange(i, 1);
-	// Erase mac info
-	ue_mac_info_.erase(rnti);
-	// Erase lc info as well
-        lc_config_mutex_.lock();
-	for (int j = 0; j < lc_config_.lc_ue_config_size(); j++) {
-	  if (rnti == lc_config_.lc_ue_config(j).rnti()) {
-	    lc_config_.mutable_lc_ue_config()->DeleteSubrange(j, 1);
-	  }
-	}
-        lc_config_mutex_.unlock();
-	return;
-      } else if (ue_state_change.type() == protocol::FLUESC_UPDATED) {
-	ue_config_.mutable_ue_config(i)->CopyFrom(ue_state_change.config());
-      }
+  std::lock_guard<std::mutex> lg_ue(ue_config_mutex_);
+  std::lock_guard<std::mutex> lg_lc(lc_config_mutex_);
+  const rnti_t rnti = ue_state_change.config().rnti();
+  google::protobuf::RepeatedPtrField<protocol::flex_ue_config>::iterator it = ue_config_.mutable_ue_config()->begin();
+  it = std::find_if(ue_config_.mutable_ue_config()->begin(), ue_config_.mutable_ue_config()->end(),
+      [rnti] (const protocol::flex_ue_config& c) { return rnti == c.rnti(); }
+  );
+
+  switch (ue_state_change.type()) {
+  case protocol::FLUESC_ACTIVATED:
+    LOG4CXX_INFO(flog::rib, "BS " << bs_id_ << ": UE RNTI " << rnti << " activated");
+    /* create new entry if not present, otherwise just update */
+    if (it == ue_config_.mutable_ue_config()->end()) {
+      protocol::flex_ue_config *c = ue_config_.add_ue_config();
+      c->CopyFrom(ue_state_change.config());
+      ue_mac_info_.emplace(rnti, std::make_shared<ue_mac_rib_info>(rnti));
+    } else {
+      /* dereference RepeatedPtrIterator, pass raw pointer */
+      clear_repeated_if_present(&(*it), ue_state_change.config());
+      it->MergeFrom(ue_state_change.config());
     }
+    break;
+  case protocol::FLUESC_DEACTIVATED:
+    LOG4CXX_INFO(flog::rib, "BS " << bs_id_ << ": UE RNTI " << rnti << " deactivated");
+    if (it != ue_config_.mutable_ue_config()->end()) {
+      ue_config_.mutable_ue_config()->erase(it);
+      ue_mac_info_.erase(rnti);
+      auto lcit = std::find_if(lc_config_.lc_ue_config().cbegin(), lc_config_.lc_ue_config().cend(),
+          [rnti] (const protocol::flex_lc_ue_config& c) { return rnti == c.rnti(); }
+      );
+      if (lcit != lc_config_.lc_ue_config().cend())
+        lc_config_.mutable_lc_ue_config()->erase(lcit);
+    }
+    break;
+  case protocol::FLUESC_UPDATED:
+    LOG4CXX_INFO(flog::rib, "BS " << bs_id_ << ": UE RNTI " << rnti << " updated");
+    if (it != ue_config_.mutable_ue_config()->end()) {
+      clear_repeated_if_present(&(*it), ue_state_change.config());
+      it->MergeFrom(ue_state_change.config());
+    }
+    break;
+  default:
+    LOG4CXX_WARN(flog::rib, "unhandled ue_state_change type " << ue_state_change.type()
+        << " in " << __func__);
   }
 }
 
 void flexran::rib::enb_rib_info::update_LC_config(const protocol::flex_lc_config_reply& lc_config_update) {
+  update_liveness();
+  if (lc_config_update.lc_ue_config_size() == 0)
+    return;
   lc_config_mutex_.lock();
   lc_config_.CopyFrom(lc_config_update);
   lc_config_mutex_.unlock();
-  update_liveness();
 }
 
 void flexran::rib::enb_rib_info::update_subframe(const protocol::flex_sf_trigger& sf_trigger) {
@@ -184,7 +254,7 @@ void flexran::rib::enb_rib_info::update_liveness() {
 }
 
 void flexran::rib::enb_rib_info::dump_mac_stats() const {
-  LOG4CXX_INFO(flog::rib, "UE MAC stats for agent " << agent_id_);
+  LOG4CXX_INFO(flog::rib, "UE MAC stats for BS " << bs_id_);
   for (auto ue_stats : ue_mac_info_) {
     ue_stats.second->dump_stats();
   }
@@ -193,8 +263,8 @@ void flexran::rib::enb_rib_info::dump_mac_stats() const {
 std::string flexran::rib::enb_rib_info::dump_mac_stats_to_string() const {
   std::string str;
 
-  str += "UE MAC stats for agent ";
-  str += agent_id_;
+  str += "UE MAC stats for BS ";
+  str += bs_id_;
   str += "\n";
   for (auto ue_stats : ue_mac_info_) {
     str += ue_stats.second->dump_stats_to_string();
@@ -213,18 +283,16 @@ std::string flexran::rib::enb_rib_info::dump_mac_stats_to_json_string() const
       { return ue_stats.second->dump_stats_to_json_string(); }
   );
 
-  return format_mac_stats_to_json(agent_id_, eNB_config_.enb_id(), ue_mac_stats);
+  return format_mac_stats_to_json(bs_id_, ue_mac_stats);
 }
 
-std::string flexran::rib::enb_rib_info::format_mac_stats_to_json(int agent_id,
-    uint64_t enb_id,
+std::string flexran::rib::enb_rib_info::format_mac_stats_to_json(
+    uint64_t bs_id,
     const std::vector<std::string>& ue_mac_stats_json)
 {
   std::string str;
-  str += "\"agent_id\":";
-  str += std::to_string(agent_id);
-  str += ",\"eNBId\":";
-  str += std::to_string(enb_id);
+  str += "\"bs_id\":";
+  str += std::to_string(bs_id);
   str += ",\"ue_mac_stats\":[";
   for (auto it = ue_mac_stats_json.begin(); it != ue_mac_stats_json.end(); it++) {
     if (it != ue_mac_stats_json.begin()) str += ",";
@@ -235,6 +303,9 @@ std::string flexran::rib::enb_rib_info::format_mac_stats_to_json(int agent_id,
 }
 
 void flexran::rib::enb_rib_info::dump_configs() const {
+  LOG4CXX_INFO(flog::rib, "dump_configs() for BS " << bs_id_);
+  for (auto a : agents_)
+    LOG4CXX_INFO(flog::rib, a->to_string());
   eNB_config_mutex_.lock();
   LOG4CXX_INFO(flog::rib, eNB_config_.DebugString());
   eNB_config_mutex_.unlock();
@@ -248,6 +319,9 @@ void flexran::rib::enb_rib_info::dump_configs() const {
 
 std::string flexran::rib::enb_rib_info::dump_configs_to_string() const {
   std::string str;
+  str += "configs for BS " + std::to_string(bs_id_) + "\n";
+  for (auto a : agents_)
+    str += a->to_string() + "\n";
   eNB_config_mutex_.lock();
   str += eNB_config_.DebugString();
   eNB_config_mutex_.unlock();
@@ -266,12 +340,17 @@ std::string flexran::rib::enb_rib_info::dump_configs_to_string() const {
 
 std::string flexran::rib::enb_rib_info::dump_configs_to_json_string() const
 {
-  std::string enb_config, ue_config, lc_config;
-  uint64_t enb_id;
+  std::string agent_info, enb_config, ue_config, lc_config;
+
+  agent_info = "[";
+  for (auto it = agents_.begin(); it != agents_.end(); ++it) {
+    if (it != agents_.begin()) agent_info += ",";
+    agent_info += (*it)->to_json();
+  }
+  agent_info += "]";
 
   eNB_config_mutex_.lock();
   google::protobuf::util::MessageToJsonString(eNB_config_, &enb_config, google::protobuf::util::JsonPrintOptions());
-  enb_id = eNB_config_.enb_id();
   eNB_config_mutex_.unlock();
 
   ue_config_mutex_.lock();
@@ -282,20 +361,21 @@ std::string flexran::rib::enb_rib_info::dump_configs_to_json_string() const
   google::protobuf::util::MessageToJsonString(lc_config_, &lc_config, google::protobuf::util::JsonPrintOptions());
   lc_config_mutex_.unlock();
 
-  return format_configs_to_json(agent_id_, enb_id, enb_config, ue_config, lc_config);
+  return format_configs_to_json(bs_id_, agent_info, enb_config, ue_config, lc_config);
 }
 
 std::string flexran::rib::enb_rib_info::format_configs_to_json(
-    int agent_id, uint64_t enb_id,
+    uint64_t bs_id,
+    const std::string& agent_info_json,
     const std::string& eNB_config_json,
     const std::string& ue_config_json,
     const std::string& lc_config_json)
 {
   std::string str;
-  str += "\"agent_id\":";
-  str += std::to_string(agent_id);
-  str += ",\"eNBId\":";
-  str += std::to_string(enb_id);
+  str += "\"bs_id\":";
+  str += std::to_string(bs_id);
+  str += ",\"agent_info\":";
+  str += agent_info_json;
   str += ",\"eNB\":";
   str += eNB_config_json;
   str += ",\"UE\":";
@@ -321,7 +401,7 @@ bool flexran::rib::enb_rib_info::parse_rnti_imsi(const std::string& rnti_imsi_s,
     uint64_t imsi;
     try {
       imsi = std::stoll(rnti_imsi_s);
-    } catch (std::invalid_argument e) {
+    } catch (const std::invalid_argument& e) {
       return false;
     }
     return get_rnti(imsi, rnti);
@@ -330,7 +410,7 @@ bool flexran::rib::enb_rib_info::parse_rnti_imsi(const std::string& rnti_imsi_s,
   // assume it is an RNTI
   try {
     rnti = std::stoi(rnti_imsi_s);
-  } catch (std::invalid_argument e) {
+  } catch (const std::invalid_argument& e) {
     return false;
   }
   return ue_mac_info_.find(rnti) != ue_mac_info_.end();
@@ -383,4 +463,27 @@ uint32_t flexran::rib::enb_rib_info::num_ul_slices(uint16_t cell_id) const
 {
   std::lock_guard<std::mutex> lg(eNB_config_mutex_);
   return eNB_config_.cell_config(cell_id).slice_config().ul_size();
+}
+
+/*
+ * Clear all repeated fields in protobuf message dst which are present in src
+ */
+void flexran::rib::enb_rib_info::clear_repeated_if_present(
+    google::protobuf::Message *dst, const google::protobuf::Message& src)
+{
+  const google::protobuf::Descriptor *desc_src = src.GetDescriptor();
+  const google::protobuf::Reflection *refl_src = src.GetReflection();
+  const google::protobuf::Descriptor *desc_dst = dst->GetDescriptor();
+  const google::protobuf::Reflection *refl_dst = dst->GetReflection();
+  for (int i = 0; i < desc_src->field_count(); ++i) {
+    const google::protobuf::FieldDescriptor *field_src = desc_src->field(i);
+    if (!field_src) continue;
+    if (!field_src->is_repeated()) continue;
+    if (refl_src->FieldSize(src, field_src) == 0) continue;
+
+    const google::protobuf::FieldDescriptor *field_dst = desc_dst->field(i);
+    if (!field_dst) continue;
+    if (!field_dst->is_repeated()) continue;
+    refl_dst->ClearField(dst, field_dst);
+  }
 }

@@ -29,6 +29,7 @@
 #include "rib_updater.h"
 #include "rt_wrapper.h"
 #include "component.h"
+#include "subscription.h"
 
 #include <linux/types.h>
 #include <vector>
@@ -43,12 +44,10 @@ namespace flexran {
     class task_manager : public rt::rt_task {
     public:
 
-      task_manager(flexran::rib::rib_updater& r_updater);
+      task_manager(flexran::rib::rib_updater& r_updater, flexran::event::subscription& ev);
 
       void manage_rt_tasks();
 
-      void register_app(const std::shared_ptr<flexran::app::component>& app);
-      
     private:
       
       void run();
@@ -60,8 +59,7 @@ namespace flexran {
 #endif
       
       flexran::rib::rib_updater& r_updater_;
-      
-      std::vector<std::shared_ptr<flexran::app::component>> apps_;
+      flexran::event::subscription& event_sub_;
 
       int sfd;
 

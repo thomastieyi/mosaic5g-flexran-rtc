@@ -1,9 +1,12 @@
 syntax = "proto2";
 package protocol;
 
+import "config_common.proto"; // for flex_plmn
+
 /**
 * RLC buffer status for a specific logical channel of a UE
 */
+
 message flex_rlc_bsr {
 	optional uint32 lc_id = 1; // logical channel identifier both SRBs and DRBs 
 	optional uint32 tx_queue_size = 2; // transmission queue size of RLC 
@@ -262,7 +265,7 @@ message flex_eutra_cgi_measurements {
 	// Tracking area code of the neighbor cell.
 	optional uint32 tracking_area_code = 2;
 	// Public land mobile network identifiers of neighbor cell.
-	repeated flex_plmn_identity plmn_id = 3;
+	repeated flex_plmn plmn = 3;
 }
 
 /**
@@ -270,7 +273,7 @@ message flex_eutra_cgi_measurements {
 */
 message flex_cell_global_eutra_id {
 	// Public land mobile network identifier of neighbor cell.
-	optional flex_plmn_identity plmn_id = 1;
+	optional flex_plmn plmn = 1;
 	// Cell identifier of neighbor cell.
 	optional uint32 cell_id = 2;
 }
@@ -279,22 +282,18 @@ message flex_cell_global_eutra_id {
 * Public land mobile network identifier (PLMN) 
 */
 message flex_plmn_identity {
-	// Mobile Network Code (MNC).
-	repeated uint32 mnc = 1;
-	// Mobile Country Code (MCC).
-	repeated uint32 mcc = 2;
-	// tracking area code 
-	repeated uint32 tac = 3;
+	
+	repeated uint32 mnc = 1; // Mobile Network Code (MNC)
+	repeated uint32 mcc = 2; // Mobile Country Code (MCC)
+	repeated uint32 tac = 3; // Tracking area code 
 }
 
 /**
 * EUTR reference signal measurements
 */
 message flex_eutra_ref_signal_meas {
-	// Neighboring Cell RSRP
-	optional int32 rsrp = 1;
-	// Neighboring Cell RSRQ	
-	optional int32 rsrq = 2;
+	optional int32 rsrp = 1; 	// Neighboring Cell RSRP
+	optional int32 rsrq = 2; 	// Neighboring Cell RSRQ	
 }
 
 /**
@@ -358,4 +357,27 @@ message flex_mac_sdus_dl {
     
     optional uint32 sdu_length = 1; // SDU length 
     optional uint32 lcid = 2; // logical channel identifier 
+}
+
+//
+// GTP stats
+//
+
+message flex_gtp_stats {
+    optional uint32 e_rab_id = 1;
+    optional uint32 teid_enb = 2;
+    optional string addr_enb = 3;
+    optional uint32 teid_sgw = 4;
+    optional string addr_sgw = 5;
+}
+
+//
+// S1AP stats
+//
+
+message flex_s1ap_ue {
+    optional string mme_s1_ip = 1;                  // IP of MME to which UE is connected
+    optional uint32 enb_ue_s1ap_id = 2;             // S1AP ID on eNodeB side for UE
+    optional uint32 mme_ue_s1ap_id = 3;             // S1AP ID on MME side for UE
+    optional flex_plmn selected_plmn = 4;           // UE-selected PLMN in RRC Conn Setup Cplt
 }

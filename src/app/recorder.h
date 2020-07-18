@@ -30,7 +30,7 @@
 #include <vector>
 #include <map>
 
-#include "periodic_component.h"
+#include "component.h"
 #include "rib_common.h"
 #include "ue_mac_rib_info.h"
 
@@ -45,12 +45,12 @@ namespace flexran {
 
     namespace log {
 
-      class agent_dump {
+      class bs_dump {
       public:
-        agent_dump(const protocol::flex_enb_config_reply& a,
-                  const protocol::flex_ue_config_reply& b,
-                  const protocol::flex_lc_config_reply& c,
-                  const std::vector<mac_harq_info_t>& d)
+        bs_dump(const protocol::flex_enb_config_reply& a,
+                const protocol::flex_ue_config_reply& b,
+                const protocol::flex_lc_config_reply& c,
+                const std::vector<mac_harq_info_t>& d)
           : enb_config(a),
             ue_config(b),
             lc_config(c),
@@ -60,13 +60,14 @@ namespace flexran {
         protocol::flex_ue_config_reply                  ue_config;
         protocol::flex_lc_config_reply                  lc_config;
         std::vector<mac_harq_info_t> ue_mac_harq_infos;
+        bool operator==(const bs_dump& other) const;
       };
 
       enum job_type { all, enb, stats, bin };
 
       class job_info {
       public:
-        job_info(uint64_t ms_start, uint64_t ms_end, std::string& filename,
+        job_info(uint64_t ms_start, uint64_t ms_end, const std::string& filename,
             job_type type)
           : ms_start(ms_start),
             ms_end(ms_end),
@@ -79,17 +80,17 @@ namespace flexran {
         job_type type;
       };
 
-      class recorder : public periodic_component {
+      class recorder : public component {
 
       public:
 
-        recorder(rib::Rib& rib, const core::requests_manager& rm)
-        : periodic_component(rib, rm),
-          ms_counter_(0),
-          current_job_(nullptr)
+        recorder(const rib::Rib& rib, const core::requests_manager& rm,
+            event::subscription& sub)
+          : component(rib, rm, sub),
+            current_job_(nullptr)
         {}
 
-        void periodic_task();
+        void tick(const bs2::connection& conn, uint64_t ms);
         bool start_meas(uint64_t duration, const std::string& type, std::string& id);
         bool get_job_info(const std::string& id, job_info& info);
 
@@ -97,47 +98,45 @@ namespace flexran {
          * method for serializing to JSON
          */
         static uint64_t write_json(job_info info,
-            const std::vector<std::map<int, agent_dump>>& dump);
+            const std::vector<std::map<uint64_t, bs_dump>>& dump);
 
         /**
          * method for serializing to binary (custom)
          */
         static uint64_t write_binary(job_info info,
-            const std::vector<std::map<int, agent_dump>>& dump);
+            const std::vector<std::map<uint64_t, bs_dump>>& dump);
 
         /**
          * methods for deserializing from binary (custom)
          */
-        static std::vector<std::map<int, agent_dump>> read_binary(std::string filename);
+        static std::vector<std::map<uint64_t, bs_dump>> read_binary(std::string filename);
 
       private:
-        uint64_t ms_counter_;
-
         /* list of finished jobs that can be accessed via the NB REST API */
         std::vector<job_info> finished_jobs_;
 
-        std::unique_ptr<std::vector<std::map<int, agent_dump>>> dump_;
+        std::unique_ptr<std::vector<std::map<uint64_t, bs_dump>>> dump_;
         std::unique_ptr<job_info> current_job_;
 
-        agent_dump record_chunk(int agent_id);
+        bs_dump record_chunk(uint64_t bs_id);
 
         /**
          * method for writer thread, passes to right (JSON/binary)
          * serialization method and moves job to writing_jobs_ after work.
          */
         void writer_method(std::unique_ptr<job_info> info,
-            std::unique_ptr<std::vector<std::map<int, agent_dump>>> dump);
+            std::unique_ptr<std::vector<std::map<uint64_t, bs_dump>>> dump);
 
         static void write_json_chunk(std::ostream& s, job_type type,
-            const std::map<int, agent_dump>& dump_chunk);
+            const std::map<uint64_t, bs_dump>& dump_chunk);
         static std::vector<std::string> get_ue_stats(
             const std::vector<mac_harq_info_t>& ue_mac_harq_infos);
 
-        static void write_binary_chunk(std::ostream& s, const std::map<int, agent_dump>& dump_chunk);
+        static void write_binary_chunk(std::ostream& s, const std::map<uint64_t, bs_dump>& dump_chunk);
         static void write_binary_ue_configs(std::ostream& s,
             const std::vector<mac_harq_info_t>& ue_mac_harq_infos);
 
-        static std::map<int, agent_dump> read_binary_chunk(std::istream &s);
+        static std::map<uint64_t, bs_dump> read_binary_chunk(std::istream &s);
         static std::vector<mac_harq_info_t> read_binary_ue_configs(std::istream &s);
 
         /**

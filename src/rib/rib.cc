@@ -25,132 +25,166 @@
 
 #include "rib.h"
 #include <algorithm>
+#include <stdexcept>
+#include <iomanip>
+#include <sstream>
 
-void flexran::rib::Rib::add_pending_agent(int agent_id) {
-  pending_agents_.insert(agent_id);
+bool flexran::rib::Rib::add_pending_agent(std::shared_ptr<agent_info> ai)
+{
+  if (ai->bs_id == 0)
+    return false;
+  if (agent_is_pending(ai->agent_id))
+    return false;
+  if (ai->capabilities.size() < 1)
+    return false;
+  for (auto p: pending_agents_) {
+    /* check that there is no existing pending agent with the same ID and
+     * overlapping capabilities */
+    if (p->bs_id == ai->bs_id
+        && !p->capabilities.orthogonal(ai->capabilities)) {
+      return false;
+    }
+  }
+
+  pending_agents_.emplace(ai);
+  return true;
 }
 
-void flexran::rib::Rib::remove_pending_agent(int agent_id) {
-  pending_agents_.erase(agent_id);
-}
-
-bool flexran::rib::Rib::agent_is_pending(int agent_id) {
-  auto search = pending_agents_.find(agent_id);
+bool flexran::rib::Rib::agent_is_pending(int agent_id) const
+{
+  auto search = std::find_if(pending_agents_.begin(), pending_agents_.end(),
+      [agent_id] (std::shared_ptr<agent_info> ai)
+      { return agent_id == ai->agent_id; }
+    );
   return search != pending_agents_.end();
 }
 
-void flexran::rib::Rib::new_eNB_config_entry(int agent_id) {
-  eNB_configs_.insert(std::pair<int,
-		      std::shared_ptr<enb_rib_info>>(agent_id,
-						     std::shared_ptr<enb_rib_info>(new enb_rib_info(agent_id))));
-}
-
-bool flexran::rib::Rib::has_eNB_config_entry(int agent_id) const
+void flexran::rib::Rib::remove_pending_agent(int agent_id)
 {
-  auto it = eNB_configs_.find(agent_id);
-  return it != eNB_configs_.end();
+  auto search = std::find_if(pending_agents_.begin(), pending_agents_.end(),
+      [agent_id] (std::shared_ptr<agent_info> ai)
+      { return agent_id == ai->agent_id; }
+    );
+  if (search == pending_agents_.end()) return;
+  pending_agents_.erase(search);
 }
 
-void flexran::rib::Rib::remove_eNB_config_entry(int agent_id) {
-  auto it = eNB_configs_.find(agent_id);
-
-  if (it == eNB_configs_.end()) {
-    return;
-  } else {
-    eNB_configs_.erase(it);
+void flexran::rib::Rib::remove_pending_agents(uint64_t bs_id)
+{
+  std::set<std::shared_ptr<agent_info>>::const_iterator search;
+  while ((search = std::find_if(pending_agents_.begin(), pending_agents_.end(),
+                       [bs_id] (std::shared_ptr<agent_info> ai)
+                       { return bs_id == ai->bs_id; }
+                   )) != pending_agents_.end()) {
+    pending_agents_.erase(search);
   }
 }
 
-void flexran::rib::Rib::eNB_config_update(int agent_id,
-					  const protocol::flex_enb_config_reply& enb_config_update) {
-  auto it = eNB_configs_.find(agent_id);
+bool flexran::rib::Rib::new_eNB_config_entry(uint64_t bs_id)
+{
+  /* ignore if such a BS already exists */
+  if (get_bs(bs_id) != nullptr) return false;
 
-  if (it == eNB_configs_.end()) {
-    return;
-  } else {
-    it->second->update_eNB_config(enb_config_update);
+  std::set<std::shared_ptr<agent_info>> agents;
+  /* get all agents matching bs_id */
+  std::for_each(pending_agents_.begin(), pending_agents_.end(),
+      [bs_id,&agents] (std::shared_ptr<agent_info> ai)
+      { if (bs_id == ai->bs_id) agents.insert(ai); }
+    );
+
+  if (agents.size() == 1 && (*agents.begin())->capabilities.is_complete()) {
+    /* create new bs with this agent, remove pending agent, create entry for
+     * known agents */
+    eNB_configs_.emplace(
+        (*agents.begin())->bs_id,
+        std::make_shared<enb_rib_info>((*agents.begin())->bs_id, agents)
+    );
+    pending_agents_.erase(*agents.begin());
+    agent_configs_.emplace((*agents.begin())->agent_id, *agents.begin());
+    return true;
   }
+
+  if (agents.size() > 1) {
+    agent_capabilities caps((*agents.begin())->capabilities);
+    for (auto it = agents.begin(); it != agents.end(); ++it) {
+      if (it == agents.begin()) continue;
+      /* test that capabilities don't overlap, if yes, add */
+      if (caps.orthogonal((*it)->capabilities)) caps.merge_in((*it)->capabilities);
+      else throw std::runtime_error("overlapping capabilities detected");
+    }
+    if (caps.is_complete()) {
+      eNB_configs_.emplace(std::make_pair(
+          (*agents.begin())->bs_id,
+          std::make_shared<enb_rib_info>((*agents.begin())->bs_id, agents)
+        )
+      );
+      for (auto a : agents) {
+        pending_agents_.erase(a);
+        agent_configs_.emplace(a->agent_id, a);
+      }
+      return true;
+    }
+  }
+
+  return false;
 }
 
-void flexran::rib::Rib::ue_config_update(int agent_id,
-					 const protocol::flex_ue_config_reply& ue_config_update) {
-  auto it = eNB_configs_.find(agent_id);
-
-  if (it == eNB_configs_.end()) {
-    return;
-  } else {
-    it->second->update_UE_config(ue_config_update);
-  }
+bool flexran::rib::Rib::has_eNB_config_entry(uint64_t bs_id) const
+{
+  return get_bs(bs_id) != nullptr;
 }
 
-void flexran::rib::Rib::ue_config_update(int agent_id,
-					 const protocol::flex_ue_state_change& ue_state_change) {
-  auto it = eNB_configs_.find(agent_id);
+bool flexran::rib::Rib::remove_eNB_config_entry(int agent_id)
+{
+  const auto it = agent_configs_.find(agent_id);
+  if (it == agent_configs_.end()) return false;
+  const std::shared_ptr<agent_info> disconnected = it->second;
 
-  if (it == eNB_configs_.end()) {
-    return;
-  } else {
-    it->second->update_UE_config(ue_state_change);
-  }
+  /* get all agents for this BS, remove corresponding enb_rib_info and
+   * agent_configs_ and put agents that are still connected into pending */
+  std::set<std::shared_ptr<agent_info>> all = eNB_configs_.find(disconnected->bs_id)->second->get_agents();
+  eNB_configs_.erase(disconnected->bs_id);
+  for (auto b: all)
+    agent_configs_.erase(b->agent_id);
+  all.erase(disconnected);
+  for (auto b: all)
+    pending_agents_.insert(b);
+  return true;
 }
 
-void flexran::rib::Rib::lc_config_update(int agent_id,
-					 const protocol::flex_lc_config_reply& lc_config_update) {
-  auto it = eNB_configs_.find(agent_id);
-
-  if (it == eNB_configs_.end()) {
-    return;
-  } else {
-    it->second->update_LC_config(lc_config_update);
-  }
-}
-
-void flexran::rib::Rib::update_liveness(int agent_id) {
-  auto it = eNB_configs_.find(agent_id);
-
-  if (it == eNB_configs_.end()) {
-    return;
-  } else {
-    it->second->update_liveness();
-  }
-}
-
-void flexran::rib::Rib::set_subframe_updates(int agent_id,
-			       const protocol::flex_sf_trigger& sf_trigger_msg) {
-  auto it = eNB_configs_.find(agent_id);
-
-  if (it == eNB_configs_.end()) {
-    return;
-  } else {
-    it->second->update_subframe(sf_trigger_msg);
-  }
-}
-
-void flexran::rib::Rib::mac_stats_update(int agent_id,
-		      const protocol::flex_stats_reply& mac_stats_update) {
-  auto it = eNB_configs_.find(agent_id);
-
-  if (it == eNB_configs_.end()) {
-    return;
-  } else {
-    it->second->update_mac_stats(mac_stats_update);
-  }
-}
-
-std::set<int> flexran::rib::Rib::get_available_agents() const {
-  std::set<int> agents;
+std::set<uint64_t> flexran::rib::Rib::get_available_base_stations() const
+{
+  std::set<uint64_t> agents;
   for (auto it : eNB_configs_) {
     agents.insert(it.first);
   }
   return agents;
 }
 
-std::shared_ptr<flexran::rib::enb_rib_info> flexran::rib::Rib::get_agent(int agent_id) const {
-  auto it = eNB_configs_.find(agent_id);
-  if (it != eNB_configs_.end()) {
-    return it->second;
-  }
-  return std::shared_ptr<enb_rib_info>(nullptr);
+std::shared_ptr<flexran::rib::enb_rib_info>
+flexran::rib::Rib::get_bs(uint64_t bs_id) const
+{
+  auto it = eNB_configs_.find(bs_id);
+  if (it == eNB_configs_.end()) return nullptr;
+
+  return it->second;
+}
+
+std::shared_ptr<flexran::rib::enb_rib_info>
+flexran::rib::Rib::get_bs_from_agent(int agent_id) const
+{
+  uint64_t bs_id = get_bs_id(agent_id);
+  if (bs_id == 0) return nullptr;
+  return get_bs(bs_id);
+}
+
+std::shared_ptr<flexran::rib::agent_info>
+flexran::rib::Rib::get_agent(int agent_id) const
+{
+  auto it = agent_configs_.find(agent_id);
+  if (it == agent_configs_.end()) return nullptr;
+
+  return it->second;
 }
 
 void flexran::rib::Rib::dump_mac_stats() const {
@@ -183,9 +217,10 @@ std::string flexran::rib::Rib::dump_all_mac_stats_to_json_string() const
   return format_mac_stats_to_json(mac_stats);
 }
 
-bool flexran::rib::Rib::dump_mac_stats_by_agent_id_to_json_string(int agent_id, std::string& out) const
+bool flexran::rib::Rib::dump_mac_stats_by_bs_id_to_json_string(uint64_t bs_id,
+    std::string& out) const
 {
-  auto it = eNB_configs_.find(agent_id);
+  auto it = eNB_configs_.find(bs_id);
   if (it == eNB_configs_.end()) return false;
 
   out = format_mac_stats_to_json(std::vector<std::string>{it->second->dump_mac_stats_to_json_string()});
@@ -196,7 +231,7 @@ std::string flexran::rib::Rib::format_mac_stats_to_json(
     const std::vector<std::string>& mac_stats_json)
 {
   std::string str;
-  str += "\"mac_stats\":[";
+  str += "[";
   for (auto it = mac_stats_json.begin(); it != mac_stats_json.end(); it++) {
     if (it != mac_stats_json.begin()) str += ",";
     str += "{";
@@ -214,7 +249,6 @@ void flexran::rib::Rib::dump_enb_configurations() const {
 }
 
 std::string flexran::rib::Rib::dump_all_enb_configurations_to_string() const {
-
   std::string str;
 
   for (auto eNB_config : eNB_configs_) {
@@ -237,9 +271,10 @@ std::string flexran::rib::Rib::dump_all_enb_configurations_to_json_string() cons
   return format_enb_configurations_to_json(enb_configurations);
 }
 
-bool flexran::rib::Rib::dump_enb_configurations_by_agent_id_to_json_string(int agent_id, std::string& out) const
+bool flexran::rib::Rib::dump_enb_configurations_by_bs_id_to_json_string(
+    uint64_t bs_id, std::string& out) const
 {
-  auto it = eNB_configs_.find(agent_id);
+  auto it = eNB_configs_.find(bs_id);
   if (it == eNB_configs_.end()) return false;
 
   out = format_enb_configurations_to_json(std::vector<std::string>{it->second->dump_configs_to_json_string()});
@@ -250,7 +285,7 @@ std::string flexran::rib::Rib::format_enb_configurations_to_json(
     const std::vector<std::string>& enb_configurations_json)
 {
   std::string str;
-  str += "\"eNB_config\":[";
+  str += "[";
   for (auto it = enb_configurations_json.begin(); it != enb_configurations_json.end(); it++) {
     if (it != enb_configurations_json.begin()) str += ",";
     str += "{";
@@ -261,53 +296,89 @@ std::string flexran::rib::Rib::format_enb_configurations_to_json(
   return str;
 }
 
-bool flexran::rib::Rib::dump_ue_by_rnti_by_agent_id_to_json_string(rnti_t rnti, std::string& out, int agent_id) const
+std::string flexran::rib::Rib::format_statistics_to_json(
+    std::chrono::time_point<std::chrono::system_clock> t,
+    const std::string& configurations,
+    const std::string& mac_stats)
 {
-  auto it = eNB_configs_.find(agent_id);
+  std::string str = "{";
+  str += "\"date_time\":\"" + format_date_time(t) + "\",";
+  if (!configurations.empty())
+    str += "\"eNB_config\":" + configurations;
+  if (!configurations.empty() && !mac_stats.empty())
+    str += ",";
+  if (!mac_stats.empty())
+    str += "\"mac_stats\":" + mac_stats;
+  str += "}";
+  return str;
+}
+
+std::string flexran::rib::Rib::format_date_time(std::chrono::time_point<std::chrono::system_clock> t)
+{
+  std::ostringstream oss;
+  auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(t.time_since_epoch()) % 1000;
+  std::time_t time = std::chrono::system_clock::to_time_t(t);
+  oss << std::put_time(std::localtime(&time), "%Y-%m-%dT%H:%M:%S.")
+    << std::setfill('0') << std::setw(3) << ms.count();
+  return oss.str();
+}
+
+bool flexran::rib::Rib::dump_ue_by_rnti_by_bs_id_to_json_string(
+    rnti_t rnti, std::string& out, uint64_t bs_id) const
+{
+  auto it = eNB_configs_.find(bs_id);
   if (it == eNB_configs_.end()) return false;
   return it->second->dump_ue_spec_stats_by_rnti_to_json_string(rnti, out);
 }
 
-int flexran::rib::Rib::get_agent_id(uint64_t enb_id) const
+uint64_t flexran::rib::Rib::get_bs_id(int agent_id) const
 {
-  auto it = find_agent(enb_id);
-  if (it == eNB_configs_.end()) return -1;
-  return it->first;
+  auto it = agent_configs_.find(agent_id);
+  if (it == agent_configs_.end()) return 0;
+
+  return it->second->bs_id;
 }
 
-int flexran::rib::Rib::parse_enb_agent_id(const std::string& enb_agent_id_s) const
+uint64_t flexran::rib::Rib::parse_enb_agent_id(const std::string& enb_agent_id_s) const
 {
+  /* -> return last eNB_config entry */
   if (enb_agent_id_s == "-1") {
-    return eNB_configs_.empty() ? -1 : std::prev(eNB_configs_.end())->first;
-  }
-  uint64_t enb_id;
-  if (enb_agent_id_s.length() >= AGENT_ID_LENGTH_LIMIT && enb_agent_id_s.substr(0, 2) == "0x") {
-    /* it is in long form and hex -> it must be an eNodeB ID */
-    try {
-      enb_id = std::stoll(enb_agent_id_s, 0, 16);
-    } catch (std::invalid_argument e) {
-      return -1;
-    }
-    return get_agent_id(enb_id);
+    return eNB_configs_.empty() ? 0 : std::prev(eNB_configs_.end())->first;
   }
 
+  uint64_t enb_id;
   try {
-    enb_id = std::stoll(enb_agent_id_s);
-  } catch (std::invalid_argument e) {
-    return -1;
+    if (enb_agent_id_s.substr(0, 2) == "0x")
+      enb_id = std::stoll(enb_agent_id_s, 0, 16);
+    else
+      enb_id = std::stoll(enb_agent_id_s);
+  } catch (const std::invalid_argument& e) {
+    return 0;
   }
-  if (enb_agent_id_s.length() >= AGENT_ID_LENGTH_LIMIT)
-    return get_agent_id(enb_id);
-  /* it is short -> it is sure it fits in an int */
-  if (!get_agent(enb_id)) return -1;
+
+  /* shorter than length limit -> assume it is agent ID */
+  if (enb_agent_id_s.length() < AGENT_ID_LENGTH_LIMIT)
+    return get_bs_id(enb_id);
+
+  if (!get_bs(enb_id)) return 0;
   return enb_id;
 }
 
-std::map<int, std::shared_ptr<flexran::rib::enb_rib_info>>::const_iterator
-flexran::rib::Rib::find_agent(uint64_t enb_id) const
+uint64_t flexran::rib::Rib::parse_bs_id(const std::string& bs_id_s) const
 {
-  return std::find_if(eNB_configs_.begin(), eNB_configs_.end(),
-      [enb_id] (const std::pair<int, std::shared_ptr<enb_rib_info>>& enb_config)
-      { return enb_id == enb_config.second->get_enb_config().enb_id(); }
-  );
+  /* -> return last eNB_config entry */
+  if (bs_id_s == "-1") {
+    return eNB_configs_.empty() ? 0 : std::prev(eNB_configs_.end())->first;
+  }
+  uint64_t enb_id;
+  try {
+    if (bs_id_s.substr(0, 2) == "0x")
+      enb_id = std::stoll(bs_id_s, 0, 16);
+    else
+      enb_id = std::stoll(bs_id_s);
+  } catch (const std::invalid_argument& e) {
+    return 0;
+  }
+  if (!get_bs(enb_id)) return 0;
+  return enb_id;
 }

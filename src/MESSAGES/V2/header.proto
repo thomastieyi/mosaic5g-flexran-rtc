@@ -50,5 +50,9 @@ enum flex_type {
      FLPT_RRC_TRIGGERING = 17;         // RRC measurement report reconfiguration
      
      FLPT_UL_MAC_CONFIG = 18;       // MAC uplink configuration
+
+     FLPT_HO_COMMAND = 21;         // Handover command 
+
+
 }
 

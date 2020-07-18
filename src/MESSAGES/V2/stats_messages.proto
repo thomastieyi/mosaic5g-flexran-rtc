@@ -12,6 +12,9 @@ message flex_complete_stats_request {
 	optional uint32 sf = 2; // subframe number 
 	optional uint32 cell_report_flags = 3; // flag to request cell report 
 	optional uint32 ue_report_flags = 4;  // flag to request UE report 
+       repeated flex_cell_stats_type cell_reports = 5; // cell status type/flag used for representational purposes at the northbound of the controller. 
+       repeated flex_ue_stats_type ue_reports = 6; // UE status type/flag used for representational purposes at the northbound of the controller. 
+
 }
 
 /**
@@ -46,7 +49,7 @@ message flex_cell_stats_report {
 */
 message flex_ue_stats_report {
 	optional uint32 rnti = 1; // UE Radio Network Temporary Identifier     
-	optional flex_ue_stats_type flags = 2;// UE stats type. One of FLUST_*
+	optional unit32 flags = 2;// UE stats type. One of FLUST_*
 	repeated uint32 bsr = 3; // UE buffer status report 
 	optional uint32 phr = 4; // UE power headroom
 	repeated flex_rlc_bsr rlc_report = 5; // UE RLC report 
@@ -56,7 +59,9 @@ message flex_ue_stats_report {
 	optional flex_ul_cqi_report ul_cqi_report = 9; // UE uplink CQI report 
 	optional flex_rrc_measurements rrc_measurements = 10; // UE RRC measurements 
         optional flex_pdcp_stats pdcp_stats = 11; // PDCP stats 
-        optional flex_mac_stats mac_stats = 12; // MAC stats 
+        optional flex_mac_stats mac_stats = 12; // MAC stats
+        repeated flex_gtp_stats gtp_stats = 13; // GTP stats
+        optional flex_s1ap_ue s1ap_stats = 14; // S1AP stats
 }
 
 //
@@ -103,7 +108,16 @@ enum flex_ue_stats_type {
      FLUST_UL_CQI = 64;
      FLUST_MAC_STATS = 128;
      FLUST_PDCP_STATS = 1024;     
+     FLUST_GTP_STATS = 2048;
+     FLUST_S1AP_STATS = 4096;
      FLUST_RRC_MEASUREMENTS = 65536;
      // To be extended with more types of stats
     
+}
+
+//
+// Northbound interface-related message
+//
+message flex_complete_stats_request_repeated {
+  repeated flex_complete_stats_request reports = 1;
 }

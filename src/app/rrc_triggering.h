@@ -16,21 +16,21 @@
  */
 
 /*! \file    rrc_triggering.h
- *  \brief   trigger RRC measurements at the agent
- *  \authors Shahab SHARIAT BAGHERI
+ *  \brief   trigger RRC measurements
+ *  \authors Robert Schmidt
  *  \company Eurecom
- *  \email   shahab.shariat@eurecom.fr
+ *  \email   robert.schmidt@eurecom.fr
  */
 
 #ifndef RRC_TRIGGERING_H_
 #define RRC_TRIGGERING_H_
 
-#include "periodic_component.h"
-// #include "enb_scheduling_info.h"
-// #include "ue_scheduling_info.h"
+#include "component.h"
 #include "rib_common.h"
 
 #include <atomic>
+#include <unordered_set>
+#include <map>
 
 namespace flexran {
 
@@ -38,32 +38,39 @@ namespace flexran {
 
     namespace rrc {
 
-      class rrc_triggering : public periodic_component {
+      class rrc_triggering : public component {
 
       public:
 
-	rrc_triggering(rib::Rib& rib, const core::requests_manager& rm)
-	  : periodic_component(rib, rm) {
-	    
-	}
+        rrc_triggering(const rib::Rib& rib, const core::requests_manager& rm,
+            event::subscription& sub);
 
-	void periodic_task();
+        bool rrc_reconf(const std::string& bs, const std::string& policy,
+            std::string& error_reason);
+        bool rrc_ho(const std::string& sbs, const std::string& ue, const std::string& tbs,
+                    std::string& error_reason);
+        bool rrc_x2_ho_net_control(const std::string& bs, bool x2_ho_net_control,
+            std::string& error_reason);
 
-	// void push_code(int agent_id, std::string function_name, std::string lib_name);
+        void bs_added(uint64_t bs_id);
+        void bs_removed(uint64_t bs_id);
 
-	void reconfigure_agent(int agent_id, std::string freq_measure);
+      private:
+        uint64_t parse_bs_agent_id(const std::string& s) const;
+        uint64_t parse_bs_id(const std::string& s) const;
+        uint64_t parse_physical_cell_id(const std::string& s) const;
 
-	void enable_rrc_triggering(std::string freq_measure);
-	
+        void push_config(uint64_t bs_id, const protocol::flex_measurement_info& rrc_info);
+        void push_ho(uint64_t bs_id, flexran::rib::rnti_t rnti, uint32_t target_phy_cell_id);
+        void push_x2_ho_net_control(uint64_t bs_id, bool x2_ho_net_control);
 
-	
+        std::unordered_set<uint64_t> set_check_phyCellId;
+        std::map<uint64_t, int> map_phyCellId;
+        bs2::connection tick_check_phyCellId;
+        void check_phyCellId(uint64_t tick);
       };
-      
     }
-    
   }
-
 }
-
 
 #endif /* RRC_TRIGGERING_H_ */

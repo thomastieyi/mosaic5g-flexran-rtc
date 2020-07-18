@@ -8,7 +8,6 @@ import "config_common.proto";
  */
 message flex_cell_config {
 	optional uint32 phy_cell_id = 1;		// The PCI of this cell
-	optional uint32 cell_id = 2;			// The PLMN cell id of this cell
 	optional uint32 pusch_hopping_offset = 3;	// PUSCH resources in RBs for hopping
 	optional flex_hopping_mode hopping_mode = 4;	// Frequency hopping mode. One of the FLHM_* enum values
 	optional uint32 n_sb = 5;			// The number of subbands
@@ -45,8 +44,10 @@ message flex_cell_config {
 	optional uint32 eutra_band= 37;       // operating band 
 	optional int32 dl_pdsch_power = 38;       // operating downlink power 
 	optional int32 ul_pusch_power = 39;       // operating uplink power
+	repeated flex_plmn plmn_id = 40;                   // The PLMN cell id of this cell
 
 	optional flex_slice_config slice_config = 42; // Slice configuration
+	optional bool x2_ho_net_control = 43; // X2 handover control command operated by the network
 }
 
 /**
@@ -97,6 +98,7 @@ message flex_ue_config {
 	optional uint64 imsi = 30;         // UE International mobile subscriber identity
 	optional uint32 dl_slice_id = 31;  // Downlink slice identifier 
 	optional uint32 ul_slice_id = 32;  // Uplink slice identifier 
+        optional flex_measurement_info info = 33;   // Configuration of RRC measurements
 }
 
 /**
@@ -107,6 +109,10 @@ message flex_lc_ue_config {
 	repeated flex_lc_config lc_config = 2;	// A list of LC configurations for the given UE
 }
 
-
-
-
+message flex_s1ap_config {
+        optional uint32 pending = 1;              // number of pending (to be connected) MMEs
+        optional uint32 connected = 2;            // number of connected MMEs
+        optional string enb_s1_ip = 3;            // S1-MME IP of eNodeB
+        optional string enb_name = 4;             // S1-MME name of eNodeB
+        repeated flex_s1ap_mme mme = 5;
+}

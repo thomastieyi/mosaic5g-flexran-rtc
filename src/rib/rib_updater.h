@@ -26,9 +26,12 @@
 #define RIB_UPDATER_H_
 
 #include "async_xface.h"
+#include "requests_manager.h"
 #include "rib.h"
 #include "flexran.pb.h"
 #include "rt_task.h"
+#include "subscription.h"
+#include <chrono>
 
 namespace flexran {
 
@@ -37,43 +40,72 @@ namespace flexran {
     class rib_updater {
 
     public:
-    rib_updater(flexran::network::async_xface& xface, Rib& storage, int n_msg_check = 350)
-      : net_xface_(xface), rib_(storage), messages_to_check_(n_msg_check) {}
+    rib_updater(Rib& storage, flexran::network::async_xface& xface,
+        flexran::core::requests_manager& netman,
+        flexran::event::subscription& ev, int n_msg_check = 350)
+      : rib_(storage), net_xface_(xface), req_manager_(netman),
+        event_sub_(ev), messages_to_check_(n_msg_check) {}
       
       unsigned int run();
       
       unsigned int update_rib();
-      
-      // Incoming message handlers
-      void handle_message(int agent_id,
-			  const protocol::flex_hello& hello_msg,
-			  protocol::flexran_direction dir);
-      void handle_message(int agent_id,
-			  const protocol::flex_echo_request& echo_request_msg);
-      void handle_message(int agent_id,
-			  const protocol::flex_echo_reply& echo_reply_msg);
-      void handle_message(int agent_id,
-			  const protocol::flex_sf_trigger& sf_trigger_msg);
-      void handle_message(int agent_id,
-			  const protocol::flex_enb_config_reply& enb_config_reply_msg);
-      void handle_message(int agent_id,
-			  const protocol::flex_ue_config_reply& ue_config_reply_msg);
-      void handle_message(int agent_id,
-			  const protocol::flex_lc_config_reply& lc_config_reply_msg);
-      void handle_message(int agent_id,
-			  const protocol::flex_stats_reply& mac_stats_reply);
-      void handle_message(int agent_id,
-			  const protocol::flex_ue_state_change& ue_state_change_msg);
-      void handle_message(int agent_id,
-                          const protocol::flex_disconnect& disconnect_msg);
+
+#ifdef PROFILE
+      void print_prof_results(std::chrono::duration<double> d);
+#endif
 
     private:
       
-      flexran::network::async_xface& net_xface_;
+      // Incoming message handlers
+      void handle_new_connection(int agent_id);
+      void dispatch_message(std::shared_ptr<flexran::network::tagged_message> tm);
+
+      void handle_hello(int agent_id,
+          const protocol::flex_hello& hello_msg,
+          protocol::flexran_direction dir);
+
+      void handle_echo_request(int agent_id,
+          const protocol::flex_echo_request& echo_request_msg);
+
+      void handle_echo_reply(int agent_id,
+          const protocol::flex_echo_reply& echo_reply_msg);
+
+      void handle_sf_trigger(int agent_id,
+          const protocol::flex_sf_trigger& sf_trigger_msg);
+
+      void handle_enb_config_reply(int agent_id,
+          const protocol::flex_enb_config_reply& enb_config_reply_msg);
+
+      void handle_ue_config_reply(int agent_id,
+          const protocol::flex_ue_config_reply& ue_config_reply_msg);
+
+      void handle_lc_config_reply(int agent_id,
+          const protocol::flex_lc_config_reply& lc_config_reply_msg);
+
+      void handle_stats_reply(int agent_id,
+          const protocol::flex_stats_reply& mac_stats_reply);
+
+      void handle_ue_state_change(int agent_id,
+          const protocol::flex_ue_state_change& ue_state_change_msg);
+
+      void handle_disconnect(int agent_id,
+          const protocol::flex_disconnect& disconnect_msg);
+
+      void trigger_bs_config(uint64_t bs_id);
+
+      void warn_unknown_agent_bs(const std::string& function, int agent_id);
+      
       Rib& rib_;
+      // RX, can TX to individual agents
+      flexran::network::async_xface& net_xface_;
+      // TX to base station, possibly inferring the right agent
+      flexran::core::requests_manager& req_manager_;
+      // Event subscription system informing apps
+      flexran::event::subscription& event_sub_;
       
       // Max number of messages to check during a single update period
       std::atomic<int> messages_to_check_;
+      static constexpr const uint64_t BS_ID_OFFSET = 10000;
       
     };
 

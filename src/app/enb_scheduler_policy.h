@@ -25,7 +25,7 @@
 #ifndef ENB_SCHEDULER_POLICY_H_
 #define ENB_SCHEDULER_POLICY_H_
 
-#include "periodic_component.h"
+#include "component.h"
 #include "enb_scheduling_info.h"
 #include "ue_scheduling_info.h"
 #include "rib_common.h"
@@ -38,12 +38,13 @@ namespace flexran {
 
     namespace scheduler {
 
-      class enb_scheduler_policy : public periodic_component {
+      class enb_scheduler_policy : public component {
 
       public:
 
-	enb_scheduler_policy(rib::Rib& rib, const core::requests_manager& rm)
-	  : periodic_component(rib, rm), code_pushed_(false) {
+        enb_scheduler_policy(const rib::Rib& rib, const core::requests_manager& rm,
+            event::subscription& sub)
+          : component(rib, rm, sub), code_pushed_(false) {
 	  
 	  // false: the scheduler is local at the agent/eNB.
 	  central_scheduling.store(false);
@@ -52,9 +53,9 @@ namespace flexran {
 
 	void periodic_task();
 	// in case we want to push both policy and code together 
-	void push_code(int agent_id, std::string function_name, std::string lib_name);
+	void push_code(uint64_t bs_id, std::string function_name, std::string lib_name);
 	// change the policy here 
-	void reconfigure_agent(int agent_id, std::string policy_name);
+	void reconfigure_agent(uint64_t bs_id, std::string policy_name);
 	// set the flag on  whether to delegate the scheduling to the agent or not 
 	void enable_central_scheduling(bool central_sch);
 	// control the transmit power control 
@@ -67,7 +68,7 @@ namespace flexran {
 	// where the remote scheduling is actually implemented. This is dependent on the flag set enable_central_scheduling(bool central_sch);
 	void run_central_scheduler();
 	
-	::std::shared_ptr<enb_scheduling_info> get_scheduling_info(int agent_id);
+	::std::shared_ptr<enb_scheduling_info> get_scheduling_info(uint64_t bs_id);
 	
 	::std::map<int, ::std::shared_ptr<enb_scheduling_info>> scheduling_info_;
 	

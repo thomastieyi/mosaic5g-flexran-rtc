@@ -27,7 +27,7 @@
 
 #include <map>
 
-#include "periodic_component.h"
+#include "component.h"
 #include "enb_scheduling_info.h"
 #include "ue_scheduling_info.h"
 
@@ -37,12 +37,13 @@ namespace flexran {
 
     namespace scheduler {
 
-      class remote_scheduler_delegation : public periodic_component {
+      class remote_scheduler_delegation : public component {
 	
       public:
 	
-      remote_scheduler_delegation(rib::Rib& rib, const core::requests_manager& rm)
-	: periodic_component(rib, rm), delegation_enabled_(false) {}
+      remote_scheduler_delegation(const rib::Rib& rib, const core::requests_manager& rm,
+            event::subscription& sub)
+        : component(rib, rm, sub), delegation_enabled_(false) {}
 	
 	void periodic_task();
 	
@@ -50,9 +51,9 @@ namespace flexran {
 	
       private:
 	
-	::std::shared_ptr<enb_scheduling_info> get_scheduling_info(int agent_id);
+        ::std::shared_ptr<enb_scheduling_info> get_scheduling_info(uint64_t bs_id);
 	
-	::std::map<int, ::std::shared_ptr<enb_scheduling_info>> scheduling_info_;
+        ::std::map<uint64_t, ::std::shared_ptr<enb_scheduling_info>> scheduling_info_;
 	
 	::std::atomic<bool> delegation_enabled_;
 	

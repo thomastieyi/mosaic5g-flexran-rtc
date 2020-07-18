@@ -16,7 +16,7 @@
  */
 
 /*! \file    rib_management.h
- *  \brief   app polling agents for connection management purposes
+ *  \brief   app polling BSs for connection management purposes
  *  \authors Robert Schmidt
  *  \company Eurecom
  *  \email   robert.schmidt@eurecom.fr
@@ -25,9 +25,7 @@
 #ifndef RIB_MANAGEMENT_H_
 #define RIB_MANAGEMENT_H_
 
-#include <chrono>
-
-#include "periodic_component.h"
+#include "component.h"
 #include "rib_common.h"
 
 namespace flexran {
@@ -36,24 +34,20 @@ namespace flexran {
 
     namespace management {
 
-      class rib_management : public periodic_component {
+      class rib_management : public component {
 
       public:
 
-        rib_management(rib::Rib& rib, const core::requests_manager& rm)
-	  : periodic_component(rib, rm),
-            ms_counter(1),
-            last_now(std::chrono::steady_clock::now()) {}
-
-        void periodic_task();
+        rib_management(const rib::Rib& rib, const core::requests_manager& rm,
+            event::subscription& sub);
+        void tick(uint64_t ms);
 
       private:
-        int ms_counter;
-        std::chrono::steady_clock::time_point last_now;
-        std::set<int> inactive_agents;
+        std::set<uint64_t> inactive_bs_;
 
-        void send_enb_config_request(int agent_id);
-        void send_ue_config_request(int agent_id);
+        void send_enb_config_request(uint64_t bs_id);
+        void send_ue_config_request(uint64_t bs_id);
+        void send_lc_config_request(uint64_t bs_id);
       };
     }
   }

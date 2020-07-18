@@ -40,19 +40,25 @@
 #include "rib_updater.h"
 #include "rib.h"
 #include "task_manager.h"
+#include "subscription.h"
 #include "stats_manager.h"
-#include "remote_scheduler.h"
-#include "remote_scheduler_delegation.h"
-#include "remote_scheduler_eicic.h"
-#include "flexible_scheduler.h"
+#include "rrm_management.h"
+//#include "remote_scheduler.h"
+//#include "remote_scheduler_delegation.h"
+//#include "remote_scheduler_eicic.h"
+//#include "flexible_scheduler.h"
 #include "rrc_triggering.h"
-#include "delegation_manager.h"
+//#include "delegation_manager.h"
 #include "requests_manager.h"
 #include "rib_management.h"
 #include "recorder.h"
 
-#ifdef NEO4J_SUPPORT
-#include "neo4j_client.h"
+//#ifdef NEO4J_SUPPORT
+//#include "neo4j_client.h"
+//#endif
+
+#ifdef ELASTIC_SEARCH_SUPPORT
+#include "elastic_search.h"
 #endif
 
 // Fort RESTful northbound API
@@ -63,10 +69,15 @@
 #include "rrc_triggering_calls.h"
 #include "stats_manager_calls.h"
 #include "recorder_calls.h"
+#ifdef ELASTIC_SEARCH_SUPPORT
+#include "elastic_calls.h"
+#endif
 
 #endif
 
+#ifdef REST_NORTHBOUND
 #include <pistache/endpoint.h>
+#endif
 
 #include <errno.h>
 #include <string.h>
@@ -78,6 +89,7 @@ std::atomic_bool g_exit_controller{false};
 
 #ifdef PROFILE
 std::atomic_bool g_doprof{false};
+std::chrono::time_point<std::chrono::steady_clock> start;
 #endif
 
 namespace po = boost::program_options;
@@ -85,7 +97,9 @@ namespace po = boost::program_options;
 int main(int argc, char* argv[]) {
 
   int cport = 2210;
+#ifdef REST_NORTHBOUND
   int north_port = 9999;
+#endif
   
   bool debug = false;
 
@@ -142,7 +156,9 @@ int main(int argc, char* argv[]) {
     }
     
     cport = opts["port"].as<int>(); 
+#ifdef REST_NORTHBOUND
     north_port = opts["nport"].as<int>();
+#endif
     
   } catch(std::exception& e) {
     std::cerr << "Error: Unrecognized parameter\n";
@@ -161,69 +177,46 @@ int main(int argc, char* argv[]) {
   }
 
 #ifdef PROFILE
-  LOG4CXX_WARN(flog::core, "Compiled with profiling support");
+  LOG4CXX_WARN(flog::core, "Compiled with profiling support (send USR2 to controller)");
 #endif
     
-  std::shared_ptr<flexran::app::scheduler::flexible_scheduler> flex_sched_app;
-
   LOG4CXX_INFO(flog::core, "Listening on port " << cport << " for incoming agent connections");
   flexran::network::async_xface net_xface(cport);
   
   // Create the rib
   flexran::rib::Rib rib;
 
+  // Create the requests manager
+  flexran::core::requests_manager rm(rib, net_xface);
+
+  // Create the event subsystem
+  flexran::event::subscription ev;
+
   // Create the rib update manager
-  flexran::rib::rib_updater r_updater(net_xface, rib);
+  flexran::rib::rib_updater r_updater(rib, net_xface, rm, ev);
 
   // Create the task manager
-  flexran::core::task_manager tm(r_updater);
-
-  // Create the requests manager
-  flexran::core::requests_manager rm(net_xface);
+  flexran::core::task_manager tm(r_updater, ev);
 
   // Register any applications that we might want to execute in the controller
-  // Stats manager
-  std::shared_ptr<flexran::app::component> stats_app(new flexran::app::stats::stats_manager(rib, rm));
-  tm.register_app(stats_app);
+  auto stats_app = std::make_shared<flexran::app::stats::stats_manager>(rib, rm, ev);
+  auto rrm_management = std::make_shared<flexran::app::management::rrm_management>(rib, rm, ev);
+  auto rrc_trigger = std::make_shared<flexran::app::rrc::rrc_triggering>(rib, rm, ev);
+  auto rib_management = std::make_shared<flexran::app::management::rib_management>(rib, rm, ev);
+  auto recorder = std::make_shared<flexran::app::log::recorder>(rib, rm, ev);
 
-  // Flexible scheduler
-  std::shared_ptr<flexran::app::component> flex_sched(new flexran::app::scheduler::flexible_scheduler(rib, rm));
-  tm.register_app(flex_sched);
-
-  // RRC measurements
-  //std::shared_ptr<flexran::app::component> rrc_trigger(new flexran::app::rrc::rrc_triggering(rib, rm));
-  //tm.register_app(rrc_trigger);
-
-  // Manage Rib info (close abandoned connections...)
-  std::shared_ptr<flexran::app::component> rib_management(new flexran::app::management::rib_management(rib, rm));
-  tm.register_app(rib_management);
-
-  // Write statistics in JSON or binary form to file
-  std::shared_ptr<flexran::app::component> recorder(new flexran::app::log::recorder(rib, rm));
-  tm.register_app(recorder);
-  
   /* More examples of developed applications are available in the commented section.
      WARNING: Some of them might still contain bugs or might be from previous versions of the controller. */
-  
-  // Remote scheduler
-  //std::shared_ptr<flexran::app::component> remote_sched(new flexran::app::scheduler::remote_scheduler(rib, rm));
-  //tm.register_app(remote_sched);
+  //auto remote_sched = std::make_shared<flexran::app::scheduler::remote_scheduler>(rib, rm, ev);
+  //auto remote_sched_eicic = std::make_shared<flexran::app::scheduler::remote_scheduler_eicic>(rib, rm, ev);
+  //auto remote_sched = std::make_shared<flexran::app::scheduler::remote_scheduler_delegation>(rib, rm, ev);
+  //auto delegation_manager = std::make_shared<flexran::app::management::delegation_manager>(rib, rm, ev);
+//#ifdef NEO4J_SUPPORT
+  //auto n4j_client = std::make_shared<flexran::app::management::neo4j_client>(rib, rm, ev);
+//#endif
 
-  // eICIC remote scheduler
-  //std::shared_ptr<flexran::app::component> remote_sched_eicic(new flexran::app::scheduler::remote_scheduler_eicic(rib, rm));
-  //tm.register_app(remote_sched_eicic);
-
-  // Remote scheduler with delegation (TEST purposes)
-  // std::shared_ptr<flexran::app::component> remote_sched(new flexran::app::scheduler::remote_scheduler_delegation(rib, rm));
-  // tm.register_app(remote_sched);
-  
-  // Delegation manager (TEST purposes)
-  //std::shared_ptr<flexran::app::component> delegation_manager(new flexran::app::management::delegation_manager(rib, rm));
-  //tm.register_app(delegation_manager);
-
-#ifdef NEO4J_SUPPORT
-  std::shared_ptr<flexran::app::component> n4j_client(new flexran::app::management::neo4j_client(rib, rm));
-  tm.register_app(n4j_client);
+#ifdef ELASTIC_SEARCH_SUPPORT
+  auto elastic = std::make_shared<flexran::app::log::elastic_search>(rib, rm, ev);
 #endif
 
   // the following threads will not handle any signal
@@ -242,28 +235,23 @@ int main(int argc, char* argv[]) {
   std::thread networkThread(&flexran::network::async_xface::execute_task, &net_xface);
 
 #ifdef REST_NORTHBOUND
-  
-  // Initialize the northbound API
-
   // Set the port and the IP to listen for REST calls and initialize the call manager
   Pistache::Port port(north_port);
   Pistache::Address addr(Pistache::Ipv4::any(), port);
   flexran::north_api::manager::call_manager north_api(addr);
 
-  // REgister Rrc Triggering Application
-  //flexran::north_api::rrc_triggering_calls rrc_calls(std::dynamic_pointer_cast<flexran::app::rrc::rrc_triggering>(rrc_trigger));  
-
-  // Register API calls for the developed applications
-  flexran::north_api::rrm_calls rrm_calls(std::dynamic_pointer_cast<flexran::app::scheduler::flexible_scheduler>(flex_sched));
-
-  flexran::north_api::stats_manager_calls stats_calls(std::dynamic_pointer_cast<flexran::app::stats::stats_manager>(stats_app));
-
-  flexran::north_api::recorder_calls recorder_calls(std::dynamic_pointer_cast<flexran::app::log::recorder>(recorder));
-  
-  //north_api.register_calls(rrc_calls);
+  flexran::north_api::rrm_calls rrm_calls(rrm_management);
   north_api.register_calls(rrm_calls);
+  flexran::north_api::stats_manager_calls stats_calls(stats_app);
   north_api.register_calls(stats_calls);
+  flexran::north_api::recorder_calls recorder_calls(recorder);
   north_api.register_calls(recorder_calls);
+  flexran::north_api::rrc_triggering_calls rrc_calls(rrc_trigger);
+  north_api.register_calls(rrc_calls);
+#ifdef ELASTIC_SEARCH_SUPPORT
+  flexran::north_api::elastic_calls elastic_calls(elastic);
+  north_api.register_calls(elastic_calls);
+#endif
 
   // Start the call manager threaded. Once task_manager_thread and
   // networkThread return, north_api will be shut down too
@@ -293,9 +281,11 @@ int main(int argc, char* argv[]) {
     }
 #ifdef PROFILE
     if (sig == SIGUSR2) {
-      if (!g_doprof)
+      if (!g_doprof) {
+        LOG4CXX_INFO(flog::core, "start profiling");
         g_doprof = true;
-      else
+        start = std::chrono::steady_clock::now();
+      } else
         LOG4CXX_ERROR(flog::core, "profiler already running");
     }
 #endif
