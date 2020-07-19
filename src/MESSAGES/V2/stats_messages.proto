@@ -14,7 +14,6 @@ message flex_complete_stats_request {
 	optional uint32 ue_report_flags = 4;  // flag to request UE report 
        repeated flex_cell_stats_type cell_reports = 5; // cell status type/flag used for representational purposes at the northbound of the controller. 
        repeated flex_ue_stats_type ue_reports = 6; // UE status type/flag used for representational purposes at the northbound of the controller. 
-
 }
 
 /**
@@ -36,7 +35,7 @@ message flex_ue_stats_request {
 // Bodies of statistics reports
 
 /**
-*The full statistics report for a specific cell
+* The full statistics report for a specific cell
 */
 message flex_cell_stats_report {
 	optional uint32 carrier_index = 1; // eNB carrier index 
@@ -45,11 +44,11 @@ message flex_cell_stats_report {
 }
 
 /**
-*Statistics report for a specific UE
+* Statistics report for a specific UE
 */
 message flex_ue_stats_report {
 	optional uint32 rnti = 1; // UE Radio Network Temporary Identifier     
-	optional unit32 flags = 2;// UE stats type. One of FLUST_*
+	optional uint32 flags = 2;// UE stats type. One of FLUST_*
 	repeated uint32 bsr = 3; // UE buffer status report 
 	optional uint32 phr = 4; // UE power headroom
 	repeated flex_rlc_bsr rlc_report = 5; // UE RLC report 
@@ -70,7 +69,7 @@ message flex_ue_stats_report {
 
 
 /**
-*Types of statistics requested by the controller
+* Types of statistics requested by the controller
 */
 enum flex_stats_type {
      FLST_COMPLETE_STATS = 0;
@@ -115,9 +114,9 @@ enum flex_ue_stats_type {
     
 }
 
-//
-// Northbound interface-related message
-//
+/**
+* Request complete state, northbound interface-related message
+*/
 message flex_complete_stats_request_repeated {
   repeated flex_complete_stats_request reports = 1;
 }

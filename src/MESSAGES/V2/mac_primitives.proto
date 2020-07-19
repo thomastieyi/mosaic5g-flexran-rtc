@@ -111,6 +111,9 @@ enum flex_vrb_format {
      FLVRBF_DISTRIBUTED = 1;
 }
 
+/**
+* GAP value
+*/
 enum flex_ngap_val {
      FLNGV_1 = 0;
      FLNGV_2 = 1;

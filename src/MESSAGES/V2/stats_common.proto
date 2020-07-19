@@ -6,7 +6,6 @@ import "config_common.proto"; // for flex_plmn
 /**
 * RLC buffer status for a specific logical channel of a UE
 */
-
 message flex_rlc_bsr {
 	optional uint32 lc_id = 1; // logical channel identifier both SRBs and DRBs 
 	optional uint32 tx_queue_size = 2; // transmission queue size of RLC 
@@ -228,54 +227,42 @@ message flex_noise_interference_report {
 */
 message flex_rrc_measurements {
 	optional int32 measid = 1; // Measurement identifier. 
-	// Primary Cell Reference Signal Received Power (RSRP).
-	optional int32 pcell_rsrp = 2;
-	// Primary Cell Reference Signal Received Quality (RSRQ).
-	optional int32 pcell_rsrq = 3;
-	// Neighboring cells measurements performed by UE.
-	optional flex_neigh_cells_measurements neigh_meas = 4;
+	optional int32 pcell_rsrp = 2; 	// Primary Cell Reference Signal Received Power (RSRP).
+	optional int32 pcell_rsrq = 3; // Primary Cell Reference Signal Received Quality (RSRQ).
+	optional flex_neigh_cells_measurements neigh_meas = 4; 	// Neighboring cells measurements performed by UE.
 }
 
 /**
 * RRC neighboring cell measurements message
 */
 message flex_neigh_cells_measurements {
-	// Neighboring EUTRA cells measurements.
-	repeated flex_eutra_measurements eutra_meas = 1;
+	repeated flex_eutra_measurements eutra_meas = 1; 	// Neighboring EUTRA cells measurements.
 }
 
 /**
 * RRC EURTA measurements message
 */
 message flex_eutra_measurements {
-	// Physical Cell identifier.
-	optional int32 phys_cell_id = 1;
-	// EUTRA Cell Global Identity (CGI) measurement.
-	optional flex_eutra_cgi_measurements cgi_meas = 2;
-	// EUTRA nearby cell reference signal measurement.
-	optional flex_eutra_ref_signal_meas meas_result = 3;
+	optional int32 phys_cell_id = 1; 	// Physical Cell identifier.
+	optional flex_eutra_cgi_measurements cgi_meas = 2; 	// EUTRA Cell Global Identity (CGI) measurement.
+	optional flex_eutra_ref_signal_meas meas_result = 3; 	// EUTRA nearby cell reference signal measurement.
 }
 
 /**
 * RRC EUTRA Cell Global Identity (CGI) measurements message
 */
 message flex_eutra_cgi_measurements {
-	// EUTRA Cell Global Identity (CGI).
-	optional flex_cell_global_eutra_id cgi = 1;
-	// Tracking area code of the neighbor cell.
-	optional uint32 tracking_area_code = 2;
-	// Public land mobile network identifiers of neighbor cell.
-	repeated flex_plmn plmn = 3;
+	optional flex_cell_global_eutra_id cgi = 1; 	// EUTRA Cell Global Identity (CGI).
+	optional uint32 tracking_area_code = 2; 	// Tracking area code of the neighbor cell.
+	repeated flex_plmn plmn = 3; 	// Public land mobile network identifiers of neighbor cell.
 }
 
 /**
 * RRC Cell Global Identity message
 */
 message flex_cell_global_eutra_id {
-	// Public land mobile network identifier of neighbor cell.
-	optional flex_plmn plmn = 1;
-	// Cell identifier of neighbor cell.
-	optional uint32 cell_id = 2;
+	optional flex_plmn plmn = 1; 	// Public land mobile network identifier of neighbor cell.
+	optional uint32 cell_id = 2; 	// Cell identifier of neighbor cell.
 }
 
 /**
@@ -359,22 +346,20 @@ message flex_mac_sdus_dl {
     optional uint32 lcid = 2; // logical channel identifier 
 }
 
-//
-// GTP stats
-//
-
+/**
+ * GTP stats
+*/
 message flex_gtp_stats {
-    optional uint32 e_rab_id = 1;
-    optional uint32 teid_enb = 2;
-    optional string addr_enb = 3;
-    optional uint32 teid_sgw = 4;
-    optional string addr_sgw = 5;
+    optional uint32 e_rab_id = 1; // radio bearer identifier associated with this GTP connection
+    optional uint32 teid_enb = 2; // tunnel-endpoint identifier at eNB
+    optional string addr_enb = 3; // IP address of eNB
+    optional uint32 teid_sgw = 4; // tunnel-endpoint identifier at SGW
+    optional string addr_sgw = 5; // IP address of SGW
 }
 
-//
-// S1AP stats
-//
-
+/**
+* S1AP stats
+*/
 message flex_s1ap_ue {
     optional string mme_s1_ip = 1;                  // IP of MME to which UE is connected
     optional uint32 enb_ue_s1ap_id = 2;             // S1AP ID on eNodeB side for UE

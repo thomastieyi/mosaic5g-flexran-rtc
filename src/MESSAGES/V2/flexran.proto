@@ -13,7 +13,6 @@ import "config_common.proto";
  * FlexRAN Control protocol Specification describes the communication protocol between the controller and the eNBs/gNBs.
  * All the messages presented here will also be defined in the Google Protocol Buffers format so that they can be cross-platform to ease development and experimentation.
 */
-
 message flexran_message {
        optional flexran_direction msg_dir = 100; // FlexRAN message direction
 	oneof msg {
@@ -47,7 +46,7 @@ message flexran_message {
  */
 enum flexran_direction {
      //option allow_alias = true;
-     NOT_SET = 0;
+     NOT_SET = 0;            // indicates unknown/unset value
      INITIATING_MESSAGE = 1; // Indicates the first message from the sender
      SUCCESSFUL_OUTCOME=2;   // Indicates a successful reception of the message by the receiver 
      UNSUCCESSFUL_OUTCOME=3;   // Indicates an unsuccessful reception of the message by the receiver 
@@ -69,15 +68,13 @@ enum flexran_err {
 	MSG_NOT_VALIDATED = -8;
 	MSG_OUT_DATED = -9;
 
-	
 	// other erros
 	UNEXPECTED = -100;	
 }	
 
-/*
+/**
 * BS capabilities in terms of functional split. Maintenance and discovery related messages.
 */ 
-
 enum flex_bs_capability {
     LOPHY = 0; // low phy layer
     HIPHY = 1; // high phy layer
@@ -91,15 +88,15 @@ enum flex_bs_capability {
 }
 
 
-/*
+/**
 * BS functional split. Maintenance and discovery related messages.
 */ 
 enum flex_bs_split {
-  F1    = 0; // F1 split, CU and DU
-  nFAPI = 1; // NFAPI split, MAC-PHY layer split
-  IF4   = 2; //  
-  IF4p5 = 3; // frequency-domain split
-  IF5   = 4; // time-domain split
+  F1    = 0; // IF1/ F1 split,  CU(PDCP/RRC) and DU(RLC/MAC/PHY)
+  nFAPI = 1; // NFAPI split specificed by small-cell forum, MAC-PHY layer split
+  IF4   = 2; // Resource element mapping split   
+  IF4p5 = 3; // Frequency-domain split 
+  IF5   = 4; // Split of PHY and RF/RRH, equivalent to 3GPP option 8 split
 }
 
 
@@ -107,17 +104,17 @@ enum flex_bs_split {
 * FlexRAN protocol hello message 
 */
 message flex_hello {
-    optional flex_header header = 1;
+    optional flex_header header = 1;  // FlexRAN protocol message header
     optional uint64 bs_id = 2;        // Unique id to distinguish the eNB
-    repeated flex_bs_capability capabilities = 3;
-    repeated flex_bs_split splits = 4;
+    repeated flex_bs_capability capabilities = 3; // BS capabilities 
+    repeated flex_bs_split splits = 4; // BS functional split option 
 }
 
 /**
  * FlexRAN protocol echo request message  
  */
 message flex_echo_request {
-	optional flex_header header = 1;
+	optional flex_header header = 1; // FlexRAN protocol message header
 	extensions 100 to 199;
 }
 
@@ -184,14 +181,12 @@ message flex_enb_config_request {
 /**
  * eNB configuration reply messages
  */
-
 message flex_enb_config_reply {
 	optional flex_header header = 1; // FlexRAN protocol message header
 	optional uint64 eNB_id = 2;		// Unique id to distinguish the eNB
 	repeated flex_cell_config cell_config = 3; // Cell main configuration parameteres  
         optional uint32 device_spec = 4; // device specific configuration
         optional flex_s1ap_config s1ap = 5; // S1AP configuration 
-
 }
 
 
@@ -215,7 +210,6 @@ message flex_ue_config_reply {
 /**
  * UE logical channel configuration request messages
  */
- 
 message flex_lc_config_request {
 	optional flex_header header = 1;// FlexRAN protocol message header
 }
@@ -253,13 +247,10 @@ message flex_ul_mac_config {
 }
 
 
-
 /** 
  * RRC measurement report triggering message 
  */
-
 message flex_rrc_triggering {
-
 	optional flex_header header = 1; // FlexRAN protocol message header
 	optional string rrc_trigger = 2; // RRC measurement report triggering message	
         optional flex_measurement_info meas_info = 3; // RRC measurement information 

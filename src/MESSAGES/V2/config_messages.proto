@@ -11,7 +11,7 @@ message flex_cell_config {
 	optional uint32 pusch_hopping_offset = 3;	// PUSCH resources in RBs for hopping
 	optional flex_hopping_mode hopping_mode = 4;	// Frequency hopping mode. One of the FLHM_* enum values
 	optional uint32 n_sb = 5;			// The number of subbands
-	optional flex_phich_resource phich_resource = 6;		// The number of REGs used for PHICH. One of the FLPR_* enum values
+	optional flex_phich_resource phich_resource = 6;// The number of REGs used for PHICH. One of the FLPR_* enum values
 	optional flex_phich_duration phich_duration = 7;// PHICH duration type. One of the FLPD_* enum values
 	optional uint32 init_nr_PDCCH_OFDM_sym = 8; 	// See TS 36.211, section 6.9
 	optional flex_si_config si_config = 9;	 	// The SI configuration
@@ -109,10 +109,13 @@ message flex_lc_ue_config {
 	repeated flex_lc_config lc_config = 2;	// A list of LC configurations for the given UE
 }
 
+/**
+ * S1AP configuration 
+ */
 message flex_s1ap_config {
         optional uint32 pending = 1;              // number of pending (to be connected) MMEs
         optional uint32 connected = 2;            // number of connected MMEs
         optional string enb_s1_ip = 3;            // S1-MME IP of eNodeB
         optional string enb_name = 4;             // S1-MME name of eNodeB
-        repeated flex_s1ap_mme mme = 5;
+        repeated flex_s1ap_mme mme = 5;          // S1-MME name of MME
 }
