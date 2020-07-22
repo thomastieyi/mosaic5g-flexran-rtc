@@ -20,8 +20,7 @@ namespace flexran {
             event::subscription& sub);
         void tick(uint64_t ms);
 
-      private:
-        std::set<uint64_t> inactive_bs_;
+    
 
       
       };

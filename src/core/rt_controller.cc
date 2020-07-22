@@ -51,6 +51,7 @@
 //#include "delegation_manager.h"
 #include "requests_manager.h"
 #include "rib_management.h"
+#include "app_firas.h"
 #include "recorder.h"
 
 //#ifdef NEO4J_SUPPORT
@@ -203,6 +204,7 @@ int main(int argc, char* argv[]) {
   auto rrm_management = std::make_shared<flexran::app::management::rrm_management>(rib, rm, ev);
   auto rrc_trigger = std::make_shared<flexran::app::rrc::rrc_triggering>(rib, rm, ev);
   auto rib_management = std::make_shared<flexran::app::management::rib_management>(rib, rm, ev);
+  auto app_firas = std::make_shared<flexran::app::management::app_firas>(rib, rm, ev);
   auto recorder = std::make_shared<flexran::app::log::recorder>(rib, rm, ev);
 
   /* More examples of developed applications are available in the commented section.

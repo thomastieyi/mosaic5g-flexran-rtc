@@ -15,6 +15,7 @@ add_library(RTC_APP_LIB
     rrc_triggering.cc
     rib_management.cc
     recorder.cc
+    app_firas.cc
     rrm_management.cc
     band_check.cc
 #   flexible_scheduler.cc
