@@ -143,9 +143,7 @@ void flexran::app::management::app_firas::tick(uint64_t ms)
   trigger_send();
   process_curl(ms);	
 
-  	
- 
-
+  
 }
 
 
