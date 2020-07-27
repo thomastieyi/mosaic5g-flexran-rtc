@@ -45,7 +45,7 @@ size_t callback(char *p, size_t , size_t nmemb, void *v) {
     std::cerr << "buffer size exceeded, limiting output to " << nmemb << "\n";
   }
 
-  std::memcpy(&buf[bufpos], p, nmemb);
+  std::memcpy(&buf[0], p, nmemb);
   bufpos += nmemb;
   buf[bufpos] = 0;
 
