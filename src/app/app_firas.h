@@ -24,16 +24,26 @@ namespace flexran {
         app_firas(const rib::Rib& rib, const core::requests_manager& rm,
             event::subscription& sub);
 	~app_firas();
+	bool add_endpoint(const std::string& ep);
+	int get_sent_packets() const { return sent_packets_; }
         void tick(uint64_t ms);
-	CURLM* curl_easy_;
-	CURL* curl_create_transfer(const std::string& addr/*,const std::string& data*/);
-	//void trigger_send(const std::string &s);
+	CURLM* curl_multi_;
+	CURL* curl_create_transfer(const std::string& addr);
+	void curl_release_handles();
+	void trigger_send();
+ 	void process_curl(uint64_t tick);
+	bool enable_logging();
+	bool disable_logging();
 
 
 
      private:
-        std::vector<std::string> elastic_search_ep_;
-
+        std::vector<std::string> app_firas_ep_;
+	 std::chrono::system_clock::time_point active_since_;
+	 int sent_packets_;
+	
+	void wait_curl_end();
+	bs2::connection tick_curl_;
 
       
       };

@@ -10,71 +10,119 @@
 #include <regex>
 #include <iostream>
 
-
-
-
-#define BUFSIZE 65536*2
-int cb_call = 0;
-char buf[BUFSIZE];
-size_t bufpos = 0;
-
-size_t callback(char *p, size_t , size_t nmemb, void *v) {
-  if (nmemb + bufpos + 1 > BUFSIZE) {
-	
-    nmemb = BUFSIZE - bufpos - 1;
-    std::cerr << "buffer size exceeded, limiting output to " << nmemb << "\n";
-  }
-
-  std::memcpy(&buf[bufpos], p, nmemb);
-  bufpos += nmemb;
-  buf[bufpos] = 0;
-
-  cb_call++;
-  std::cout << __func__ << ":" << cb_call << ": writing " << nmemb
-            << "B, total " << bufpos << "B\n";
-  	
-  return nmemb; // if buffer exceeded, reduced nmemb will trigger error in libcurl
-}
-
-void number_output() {
-  std::vector<std::string> f;
-  std::string s{buf};
-  std::string delimiter = "\n";
-
-  size_t pos = 0;
-  while ((pos = s.find(delimiter)) != std::string::npos) {
-    f.push_back(s.substr(0, pos));
-    s.erase(0, pos + delimiter.length());
-  }
-
-  int i = 0;
-  for (const std::string& si : f) {
-    std::cout << i << ": " << si << "\n";
-    i++;
-  }
-bufpos=0;
-}
- 
-
-
-
-
+//constructeur
 flexran::app::management::app_firas::app_firas(const flexran::rib::Rib& rib,
     const flexran::core::requests_manager& rm, flexran::event::subscription& sub)
-  : component(rib, rm, sub)
+  : component(rib, rm, sub), 
+    active_since_(std::chrono::system_clock::now()),
+    sent_packets_(0)
 {
-      elastic_search_ep_.push_back("localhost:8080"),
-  event_sub_.subscribe_task_tick(
+      app_firas_ep_.push_back("localhost:8080"),
+      event_sub_.subscribe_task_tick(
       boost::bind(&flexran::app::management::app_firas::tick, this, _1), 1000);
-      curl_easy_ = curl_easy_init();
+      curl_multi_ = curl_multi_init();
 }
 
-
+//distructeur
 flexran::app::management::app_firas::~app_firas()
 
 {
-  curl_easy_cleanup(curl_easy_);
+  disable_logging();	
+ curl_multi_cleanup(curl_multi_);
   
+}
+
+//------------------------------------------------------------------
+void flexran::app::management::app_firas::trigger_send()
+{
+  /* place a new transfer handle in curl's transfer queue */
+  for (const std::string& addr : app_firas_ep_) {
+    
+    CURL *temp = curl_create_transfer("localhost:8080/list");
+    curl_multi_add_handle(curl_multi_, temp);
+
+    
+  }
+  /* actual transfer happens in process_curl() */
+ 
+}
+
+//------------------------------------------------------------------
+
+CURL *flexran::app::management::app_firas::curl_create_transfer(const std::string& addr)
+{
+   CURL *curl1;
+   
+   curl1 = curl_easy_init();
+ 
+
+    if (!curl1) {
+    std::cerr << "curl_easy_init() failed\n";
+    return 0;
+  }
+
+  
+  //Request options
+  curl_easy_setopt(curl1, CURLOPT_URL, addr.c_str());
+  curl_easy_setopt(curl1, CURLOPT_VERBOSE, 1L);
+ 
+  return curl1;
+}
+//------------------------------------------------------------------
+
+void flexran::app::management::app_firas::curl_release_handles()
+{
+  /* check finished transfers and remove/free the handles */
+  CURLMsg *m;
+  int n;
+  do {
+   m = curl_multi_info_read(curl_multi_, &n);
+   if (m && m->msg == CURLMSG_DONE) {
+     CURL *e = m->easy_handle;
+     long code = 0;
+     curl_easy_getinfo(e, CURLINFO_RESPONSE_CODE, &code);
+     if (code == 200) /* if ok */
+       sent_packets_ += 1;
+     curl_multi_remove_handle(curl_multi_, e);
+     curl_easy_cleanup(e);
+   }
+  } while (m);
+}
+
+void flexran::app::management::app_firas::process_curl(uint64_t tick)
+{
+  _unused(tick);
+
+  int n;
+  /* from documentation for curl_multi_perform(): "This function does not
+   * require that there actually is any data available for reading or that data
+   * can be written, it can be called just in case." */
+  CURLMcode mc = curl_multi_perform(curl_multi_, &n);
+  if (mc != CURLM_OK) {
+    LOG4CXX_ERROR(flog::app, "CURL encountered a problem (" << mc << "), disabling logging");
+    disable_logging();
+  }
+
+  curl_release_handles();
+}
+
+void flexran::app::management::app_firas::wait_curl_end()
+{
+  /* finish all curl transfers in a blocking fashion, remove handles and return */
+  int n;
+  do {
+    CURLMcode mc = curl_multi_perform(curl_multi_, &n);
+    if (mc == CURLM_OK ) {
+      // wait for activity, timeout or "nothing"
+      int numfds;
+      mc = curl_multi_wait(curl_multi_, NULL, 0, 1000, &numfds);
+      if (mc != CURLM_OK) break;
+    } else {
+      break;
+    }
+  } while (n);
+
+  curl_release_handles();
 }
 
 
@@ -91,37 +139,43 @@ void flexran::app::management::app_firas::tick(uint64_t ms)
   //trigger_send("/push/a");
    //trigger_send("/list");
 	
-  //curl_create_transfer("localhost:8080/push/a");
-  curl_create_transfer("localhost:8080/list");	
+  //curl_create_transfer("localhost:8080/list");
+  trigger_send();
+  process_curl(ms);	
+
   	
  
 
 }
 
- 
 
-CURL *flexran::app::management::app_firas::curl_create_transfer(const std::string& addr)
+bool flexran::app::management::app_firas::enable_logging()
 {
-CURL *curl;
-  CURLcode res;
-  curl = curl_easy_init();
-  if (!curl) {
-    std::cerr << "curl_easy_init() failed\n";
-    return 0;
-  }
-  curl_easy_setopt(curl, CURLOPT_URL, addr.c_str());
-  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, callback);
-  /* Perform the request, res will get the return code */
-  res = curl_easy_perform(curl);
-  	
-  /* Check for errors */	
-  if (res != CURLE_OK)
-    std::cerr << "curl_easy_perform() failed: " << curl_easy_strerror(res) << "\n";
-  else
-    std::cout << "curl_easy_perform() finished\n";
-  number_output();
-  /* always cleanup */
-  curl_easy_cleanup(curl);
-  return 0;
 
+
+  /* TODO check that curl connection succeeds? */
+
+  active_since_ = std::chrono::system_clock::now();
+  sent_packets_ = 0;
+  
+
+
+    tick_curl_ = event_sub_.subscribe_task_tick(
+      boost::bind(&flexran::app::management::app_firas::process_curl, this, _1),
+        20, 0);
+
+  return true;
 }
+
+
+
+bool flexran::app::management::app_firas::disable_logging()
+{
+ 
+  if (tick_curl_.connected()) tick_curl_.disconnect();
+  wait_curl_end();
+  return true;
+}
+
+
+
