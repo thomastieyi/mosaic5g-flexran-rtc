@@ -70,6 +70,7 @@
 #include "rrc_triggering_calls.h"
 #include "stats_manager_calls.h"
 #include "recorder_calls.h"
+#include "app_firas_calls.h"
 #ifdef ELASTIC_SEARCH_SUPPORT
 #include "elastic_calls.h"
 #endif
@@ -250,6 +251,8 @@ int main(int argc, char* argv[]) {
   north_api.register_calls(recorder_calls);
   flexran::north_api::rrc_triggering_calls rrc_calls(rrc_trigger);
   north_api.register_calls(rrc_calls);
+  flexran::north_api::app_firas_calls firas_calls(app_firas);
+  north_api.register_calls(firas_calls);
 #ifdef ELASTIC_SEARCH_SUPPORT
   flexran::north_api::elastic_calls elastic_calls(elastic);
   north_api.register_calls(elastic_calls);
