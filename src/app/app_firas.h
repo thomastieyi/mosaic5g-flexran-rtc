@@ -32,6 +32,7 @@ namespace flexran {
 	void curl_release_handles();
 	void trigger_send();
  	void process_curl(uint64_t tick);
+	void wait_curl_end();
 	
 
 

@@ -5,13 +5,45 @@
 
 #include <chrono>
 #include <string>
+#include <cstring>
 #include <thread>
 #include <curl/curl.h>
 #include <regex>
 #include <iostream>
+#define BUFSIZE 65536*2
+int cb_call = 0;
+char buf[BUFSIZE];
+size_t bufpos = 0;
 
-
-
+size_t callback(char *p, size_t , size_t nmemb, void *v) {
+  if (nmemb + bufpos + 1 > BUFSIZE) {
+    nmemb = BUFSIZE - bufpos - 1;
+    std::cerr << "buffer size exceeded, limiting output to " << nmemb << "\n";
+  }
+  std::memcpy(&buf[bufpos], p, nmemb);
+  bufpos += nmemb;
+  buf[bufpos] = 0;
+  cb_call++;
+  std::cout << cb_call << ": writing " << nmemb
+            << "B, total " << bufpos << "B\n";
+  return nmemb; // if buffer exceeded, reduced nmemb will trigger error in libcurl
+}
+void number_output() {
+  std::vector<std::string> f;
+  std::string s{buf};
+  std::string delimiter = "\n";
+  size_t pos = 0;
+  while ((pos = s.find(delimiter)) != std::string::npos) {
+    f.push_back(s.substr(0, pos));
+    s.erase(0, pos + delimiter.length());
+  }
+  int i = 0;
+  for (const std::string& si : f) {
+    std::cout << i << ": " << si << "\n";
+    i++;
+  }
+  bufpos = 0;
+}
 flexran::app::management::app_firas::app_firas(const flexran::rib::Rib& rib,
     const flexran::core::requests_manager& rm, flexran::event::subscription& sub)
   : component(rib, rm, sub), 
@@ -48,6 +80,25 @@ void flexran::app::management::app_firas::trigger_send()
  
 }
 
+void flexran::app::management::app_firas::wait_curl_end()
+{
+  /* finish all curl transfers in a blocking fashion, remove handles and return */
+  int n;
+  do {
+    CURLMcode mc = curl_multi_perform(curl_multi_, &n);
+    if (mc == CURLM_OK ) {
+      // wait for activity, timeout or "nothing"
+      int numfds;
+      mc = curl_multi_wait(curl_multi_, NULL, 0, 1000, &numfds);
+      if (mc != CURLM_OK) break;
+    } else {
+      break;
+    }
+  } while (n);
+
+  curl_release_handles();
+}
+
 CURL *flexran::app::management::app_firas::curl_create_transfer(const std::string& addr)
 {
    CURL *curl1; 
@@ -59,6 +110,9 @@ CURL *flexran::app::management::app_firas::curl_create_transfer(const std::strin
   //Request options
   curl_easy_setopt(curl1, CURLOPT_URL, addr.c_str());
   curl_easy_setopt(curl1, CURLOPT_VERBOSE, 1L);
+  curl_easy_setopt(curl1, CURLOPT_WRITEFUNCTION, callback);
+  wait_curl_end();
+  number_output();
  
   return curl1;
 }
@@ -104,6 +158,7 @@ void flexran::app::management::app_firas::tick(uint64_t ms)
   LOG4CXX_INFO(flog::app, "Handshaking" );
   std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
   trigger_send();
+  	
   process_curl(ms);	
 }
 
