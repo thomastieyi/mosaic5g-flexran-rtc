@@ -69,13 +69,13 @@ flexran::app::management::app_firas::~app_firas()
 void flexran::app::management::app_firas::trigger_send()
 {
   /* place a new transfer handle in curl's transfer queue */
-  for (const std::string& addr : app_firas_ep_) {
+  
     
     CURL *temp = curl_create_transfer("localhost:8080/list");
     curl_multi_add_handle(curl_multi_, temp);
 
     
-  }
+  
   /* actual transfer happens in process_curl() */
  
 }
@@ -89,7 +89,7 @@ void flexran::app::management::app_firas::wait_curl_end()
     if (mc == CURLM_OK ) {
       // wait for activity, timeout or "nothing"
       int numfds;
-      mc = curl_multi_wait(curl_multi_, NULL, 0, 1000, &numfds);
+      mc = curl_multi_wait(curl_multi_, NULL, 0, 10, &numfds);
       if (mc != CURLM_OK) break;
     } else {
       break;
@@ -156,7 +156,7 @@ void flexran::app::management::app_firas::tick(uint64_t ms)
 {
   _unused(ms);
   LOG4CXX_INFO(flog::app, "Handshaking" );
-  std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+ 
   trigger_send();
   	
   process_curl(ms);	
