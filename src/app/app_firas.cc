@@ -47,10 +47,9 @@ void number_output() {
 flexran::app::management::app_firas::app_firas(const flexran::rib::Rib& rib,
     const flexran::core::requests_manager& rm, flexran::event::subscription& sub)
   : component(rib, rm, sub), 
-    active_since_(std::chrono::system_clock::now()),
-    sent_packets_(0)
+    active_since_(std::chrono::system_clock::now())
+    
 {
-      app_firas_ep_.push_back("localhost:8080"),
       event_sub_.subscribe_task_tick(
       boost::bind(&flexran::app::management::app_firas::tick, this, _1), 1000);
       curl_multi_ = curl_multi_init();
@@ -60,7 +59,7 @@ flexran::app::management::app_firas::app_firas(const flexran::rib::Rib& rib,
 flexran::app::management::app_firas::~app_firas()
 
 {
- 
+ disable_logging();
  curl_multi_cleanup(curl_multi_);
   
 }
@@ -80,24 +79,7 @@ void flexran::app::management::app_firas::trigger_send()
  
 }
 
-void flexran::app::management::app_firas::wait_curl_end()
-{
-  /* finish all curl transfers in a blocking fashion, remove handles and return */
-  int n;
-  do {
-    CURLMcode mc = curl_multi_perform(curl_multi_, &n);
-    if (mc == CURLM_OK ) {
-      // wait for activity, timeout or "nothing"
-      int numfds;
-      mc = curl_multi_wait(curl_multi_, NULL, 0, 10, &numfds);
-      if (mc != CURLM_OK) break;
-    } else {
-      break;
-    }
-  } while (n);
 
-  curl_release_handles();
-}
 
 CURL *flexran::app::management::app_firas::curl_create_transfer(const std::string& addr)
 {
@@ -111,7 +93,6 @@ CURL *flexran::app::management::app_firas::curl_create_transfer(const std::strin
   curl_easy_setopt(curl1, CURLOPT_URL, addr.c_str());
   curl_easy_setopt(curl1, CURLOPT_VERBOSE, 1L);
   curl_easy_setopt(curl1, CURLOPT_WRITEFUNCTION, callback);
-  wait_curl_end();
   number_output();
  
   return curl1;
@@ -121,6 +102,7 @@ void flexran::app::management::app_firas::curl_release_handles()
   /* check finished transfers and remove/free the handles */
   CURLMsg *m;
   int n;
+  
   do {
    m = curl_multi_info_read(curl_multi_, &n);
    if (m && m->msg == CURLMSG_DONE) {
@@ -131,8 +113,10 @@ void flexran::app::management::app_firas::curl_release_handles()
        sent_packets_ += 1;
      curl_multi_remove_handle(curl_multi_, e);
      curl_easy_cleanup(e);
+     	
    }
   } while (m);
+  
 }
 void flexran::app::management::app_firas::process_curl(uint64_t tick)
 {
@@ -147,7 +131,7 @@ void flexran::app::management::app_firas::process_curl(uint64_t tick)
     LOG4CXX_ERROR(flog::app, "CURL encountered a problem (" << mc << "), disabling logging");
    
   }
-
+ 
  curl_release_handles();
 }
 
@@ -159,9 +143,18 @@ void flexran::app::management::app_firas::tick(uint64_t ms)
  
   trigger_send();
   	
-  process_curl(ms);	
+ tick_curl_ = event_sub_.subscribe_task_tick(
+      boost::bind(&flexran::app::management::app_firas::process_curl, this, _1),
+        1, 0);	
 }
 
+bool flexran::app::management::app_firas::disable_logging()
+{
+ 
+  if (tick_curl_.connected()) tick_curl_.disconnect();
+  
+  return true;
+}
 
 void flexran::app::management::app_firas::trigger_request(const std::string& id)
 {
