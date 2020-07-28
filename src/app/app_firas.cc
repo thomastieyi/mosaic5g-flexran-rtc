@@ -163,6 +163,7 @@ void flexran::app::management::app_firas::tick(uint64_t ms)
 }
 
 
-
-
-
+void flexran::app::management::app_firas::trigger_request(const std::string& id)
+{
+  LOG4CXX_INFO(flog::app, __func__ << "(): trigger for ID '" << id << "'");
+}

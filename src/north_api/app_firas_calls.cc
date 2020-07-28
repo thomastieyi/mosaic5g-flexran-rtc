@@ -40,5 +40,6 @@ void flexran::north_api::app_firas_calls::app_firas_trigger(
     Pistache::Http::ResponseWriter response)
 {
   const std::string id = request.param(":id").as<std::string>();
+  firas_app->trigger_request(id);
   response.send(Pistache::Http::Code::Ok, "requested '" + id + "'\n");
 }
