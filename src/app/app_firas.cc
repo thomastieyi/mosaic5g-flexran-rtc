@@ -93,27 +93,10 @@ void flexran::app::management::app_firas::process_curl(uint64_t tick)
    
   }
 
- // curl_release_handles();
+ curl_release_handles();
 }
 
-void flexran::app::management::app_firas::wait_curl_end()
-{
-  /* finish all curl transfers in a blocking fashion, remove handles and return */
-  int n;
-  do {
-    CURLMcode mc = curl_multi_perform(curl_multi_, &n);
-    if (mc == CURLM_OK ) {
-      // wait for activity, timeout or "nothing"
-      int numfds;
-      mc = curl_multi_wait(curl_multi_, NULL, 0, 1000, &numfds);
-      if (mc != CURLM_OK) break;
-    } else {
-      break;
-    }
-  } while (n);
 
-  curl_release_handles();
-}
 void flexran::app::management::app_firas::tick(uint64_t ms)
 {
   _unused(ms);

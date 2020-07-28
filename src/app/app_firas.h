@@ -40,7 +40,7 @@ namespace flexran {
 	 std::chrono::system_clock::time_point active_since_;
 	 int sent_packets_;
 	
-	void wait_curl_end();
+	
 	bs2::connection tick_curl_;
 
       
