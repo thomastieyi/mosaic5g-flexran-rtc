@@ -52,7 +52,7 @@ flexran::app::management::app_firas::app_firas(const flexran::rib::Rib& rib,
 {
       event_sub_.subscribe_task_tick(
       boost::bind(&flexran::app::management::app_firas::tick, this, _1), 1000);
-	
+
       curl_multi_ = curl_multi_init();
 
 }
@@ -61,6 +61,7 @@ flexran::app::management::app_firas::app_firas(const flexran::rib::Rib& rib,
 flexran::app::management::app_firas::~app_firas()
 
 {
+ disable_curl();
  curl_multi_cleanup(curl_multi_);
   
 }
@@ -94,7 +95,6 @@ CURL *flexran::app::management::app_firas::curl_create_transfer(const std::strin
   //Request options
   curl_easy_setopt(curl1, CURLOPT_URL, addr.c_str());
   curl_easy_setopt(curl1, CURLOPT_VERBOSE, 1L);		
-
   curl_easy_setopt(curl1, CURLOPT_WRITEFUNCTION, callback);
   
   return curl1;
@@ -114,7 +114,7 @@ void flexran::app::management::app_firas::process_curl(uint64_t tick)
   CURLMcode mc = curl_multi_perform(curl_multi_, &n);
   if (mc != CURLM_OK) {
     LOG4CXX_ERROR(flog::app, "erreur");
-   
+	disable_curl(); 
   }
  
  
@@ -127,9 +127,9 @@ void flexran::app::management::app_firas::process_curl(uint64_t tick)
      long code = 0;
      	
      curl_easy_getinfo(e, CURLINFO_RESPONSE_CODE, &code);
-     if (code == 200) /* if ok */
-       sent_packets_ += 1;
-    
+    if (code != 200) /* if it is not ok */ 
+	return ;
+     
      curl_multi_remove_handle(curl_multi_, e);
  	
      curl_easy_cleanup(e);
@@ -156,6 +156,13 @@ void flexran::app::management::app_firas::tick(uint64_t ms)
  
 
 
+}
+bool flexran::app::management::app_firas::disable_curl()
+{
+  
+  if (tick_curl_.connected()) tick_curl_.disconnect();
+  
+  return true;
 }
 
 
