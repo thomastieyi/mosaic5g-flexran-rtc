@@ -51,7 +51,7 @@ flexran::app::management::app_firas::app_firas(const flexran::rib::Rib& rib,
     
 {
       event_sub_.subscribe_task_tick(
-      boost::bind(&flexran::app::management::app_firas::tick, this, _1), 10000);
+      boost::bind(&flexran::app::management::app_firas::tick, this, _1), 1000);
 	
       curl_multi_ = curl_multi_init();
 
