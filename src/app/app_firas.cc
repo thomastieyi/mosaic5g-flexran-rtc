@@ -128,8 +128,13 @@ void flexran::app::management::app_firas::process_curl(uint64_t tick)
      	
      curl_easy_getinfo(e, CURLINFO_RESPONSE_CODE, &code);
     if (code != 200) /* if it is not ok */ 
-	return ;
+	{bufpos = 0;
+	curl_multi_remove_handle(curl_multi_, e);
+ 	
      
+	return ;
+	
+ 		}    
      curl_multi_remove_handle(curl_multi_, e);
  	
      curl_easy_cleanup(e);
@@ -154,15 +159,10 @@ void flexran::app::management::app_firas::tick(uint64_t ms)
  tick_curl_ = event_sub_.subscribe_task_tick(
       boost::bind(&flexran::app::management::app_firas::process_curl, this, _1),
         10, 0);	
- 
-
-
 }
 bool flexran::app::management::app_firas::disable_curl()
 {
-  
   if (tick_curl_.connected()) tick_curl_.disconnect();
-  
   return true;
 }
 
