@@ -135,6 +135,7 @@ void flexran::app::management::app_firas::process_curl(uint64_t tick)
      curl_easy_cleanup(e);
      
      number_output();	
+     
    }
   } while (m);
 
