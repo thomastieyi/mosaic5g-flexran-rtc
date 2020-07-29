@@ -29,11 +29,9 @@ namespace flexran {
         void tick(uint64_t ms);
 	CURLM* curl_multi_;
 	CURL* curl_create_transfer(const std::string& addr);
-	void curl_release_handles();
+	//void curl_release_handles();
 	void trigger_send();
  	void process_curl(uint64_t tick);
-	bool disable_logging();
-	void wait_curl_end();
 	void trigger_request(const std::string& id);
 
 
