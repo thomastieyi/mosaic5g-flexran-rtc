@@ -3,6 +3,8 @@
 #include "enb_rib_info.h"
 #include "flexran_log.h"
 
+#include <iostream>
+#include <fstream>
 #include <chrono>
 #include <string>
 #include <cstring>
@@ -28,20 +30,45 @@ size_t callback(char *p, size_t , size_t nmemb, void *v) {
             << "B, total " << bufpos << "B\n";
   return nmemb; // if buffer exceeded, reduced nmemb will trigger error in libcurl
 }
-void number_output() {
+void number_output(const std::string& id) {
   std::vector<std::string> f;
   std::string s{buf};
   std::string delimiter = "\n";
+  const char *path="/home/user/file.txt";	
   size_t pos = 0;
   while ((pos = s.find(delimiter)) != std::string::npos) {
     f.push_back(s.substr(0, pos));
     s.erase(0, pos + delimiter.length());
   }
-  int i = 0;
+   int i = 0;
   for (const std::string& si : f) {
-    std::cout << i << ": " << si << "\n";
+    if(id ==si) {
+// Create and open a text file
+  std::ofstream MyFile("/home/nymphe/log.txt");
+
+// Write to the file
+  MyFile << id << "  exist\n";
+
+// Close the file
+  MyFile.close();
+
+
+	std::cout << "mawjouda \n";
+	break;}
+	
     i++;
-  }
+  } 
+	if (id !=f[i]){
+// Create and open a text file
+  std::ofstream MyFile("/home/nymphe/log.txt");
+
+// Write to the file
+  MyFile << id << "  does not exist\n";
+
+// Close the file
+  MyFile.close();
+
+		std::cout << "la2 \n";}
   bufpos = 0;
 }
 flexran::app::management::app_firas::app_firas(const flexran::rib::Rib& rib,
@@ -139,7 +166,7 @@ void flexran::app::management::app_firas::process_curl(uint64_t tick)
  	
      curl_easy_cleanup(e);
      
-     number_output();	
+     //number_output();	
      
    }
   } while (m);
@@ -170,4 +197,5 @@ bool flexran::app::management::app_firas::disable_curl()
 void flexran::app::management::app_firas::trigger_request(const std::string& id)
 {
   LOG4CXX_INFO(flog::app, __func__ << "(): trigger for ID '" << id << "'");
+  number_output(id);
 }
