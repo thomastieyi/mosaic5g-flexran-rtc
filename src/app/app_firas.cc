@@ -30,7 +30,7 @@ size_t callback(char *p, size_t , size_t nmemb, void *v) {
             << "B, total " << bufpos << "B\n";
   return nmemb; // if buffer exceeded, reduced nmemb will trigger error in libcurl
 }
-void number_output(const std::string& id) {
+void number_output() {
   std::vector<std::string> f;
   std::string s{buf};
   std::string delimiter = "\n";
@@ -41,36 +41,36 @@ void number_output(const std::string& id) {
     s.erase(0, pos + delimiter.length());
   }
    int i = 0;
+  
   for (const std::string& si : f) {
-    if(id ==si) {
-// Create and open a text file
-  std::ofstream MyFile("/home/nymphe/log.txt");
-
-// Write to the file
-  MyFile << id << "  exist\n";
-
-// Close the file
-  MyFile.close();
-
-
-	std::cout << "mawjouda \n";
-	break;}
-	
+    std::cout << i << ": " << si << "\n";
     i++;
-  } 
-	if (id !=f[i]){
-// Create and open a text file
-  std::ofstream MyFile("/home/nymphe/log.txt");
-
-// Write to the file
-  MyFile << id << "  does not exist\n";
-
-// Close the file
-  MyFile.close();
-
-		std::cout << "la2 \n";}
+  }
   bufpos = 0;
 }
+int exist(const std::string& id){
+	std::vector<std::string> f;
+  std::string s{buf};
+  std::string delimiter = "\n";
+  const char *path="/home/user/file.txt";	
+  size_t pos = 0;
+  while ((pos = s.find(delimiter)) != std::string::npos) {
+    f.push_back(s.substr(0, pos));
+    s.erase(0, pos + delimiter.length());
+  }
+   int i = 0;
+  
+  for (const std::string& si : f) {
+     if(id ==si) {
+	return 1;}	
+    i++;
+  } 
+return 0;
+  }
+
+
+
+
 flexran::app::management::app_firas::app_firas(const flexran::rib::Rib& rib,
     const flexran::core::requests_manager& rm, flexran::event::subscription& sub)
   : component(rib, rm, sub), 
@@ -94,12 +94,12 @@ flexran::app::management::app_firas::~app_firas()
 }
 
 
-void flexran::app::management::app_firas::trigger_send()
+void flexran::app::management::app_firas::trigger_send(const std::string& addr)
 {
   /* place a new transfer handle in curl's transfer queue */
   
     
-    CURL *temp = curl_create_transfer("localhost:8080/list");
+    CURL *temp = curl_create_transfer(addr);
     
     curl_multi_add_handle(curl_multi_, temp);
 
@@ -121,7 +121,7 @@ CURL *flexran::app::management::app_firas::curl_create_transfer(const std::strin
   }
   //Request options
   curl_easy_setopt(curl1, CURLOPT_URL, addr.c_str());
-  curl_easy_setopt(curl1, CURLOPT_VERBOSE, 1L);		
+  //curl_easy_setopt(curl1, CURLOPT_VERBOSE, 1L);		
   curl_easy_setopt(curl1, CURLOPT_WRITEFUNCTION, callback);
   
   return curl1;
@@ -162,11 +162,12 @@ void flexran::app::management::app_firas::process_curl(uint64_t tick)
 	return ;
 	
  		}    
-     curl_multi_remove_handle(curl_multi_, e);
+     curl_multi_remove_handle(curl_multi_, &e);
  	
      curl_easy_cleanup(e);
      
-     //number_output();	
+ 
+    number_output();	
      
    }
   } while (m);
@@ -175,17 +176,18 @@ void flexran::app::management::app_firas::process_curl(uint64_t tick)
 }
 
 
+
 void flexran::app::management::app_firas::tick(uint64_t ms)
 {
   _unused(ms);
   	
-  LOG4CXX_INFO(flog::app, "Handshaking" );
+ // LOG4CXX_INFO(flog::app, "Handshaking" );
  
   
- trigger_send();
- tick_curl_ = event_sub_.subscribe_task_tick(
+// trigger_send("localhost:8080/list");
+ /*tick_curl_ = event_sub_.subscribe_task_tick(
       boost::bind(&flexran::app::management::app_firas::process_curl, this, _1),
-        10, 0);	
+        10, 0);	*/
 }
 bool flexran::app::management::app_firas::disable_curl()
 {
@@ -195,7 +197,30 @@ bool flexran::app::management::app_firas::disable_curl()
 
 
 void flexran::app::management::app_firas::trigger_request(const std::string& id)
-{
+{ 
   LOG4CXX_INFO(flog::app, __func__ << "(): trigger for ID '" << id << "'");
-  number_output(id);
+  
+  trigger_send("localhost:8080/list");
+ 
+ LOG4CXX_INFO(flog::app, exist(id) );
+ if (exist(id)==1){
+	std::cout <<"mawjouda\n";
+  	std::ofstream MyFile("/home/nymphe/log.txt");
+  	MyFile << id << "exist\n";
+        MyFile.close();
+	trigger_send("localhost:8080/retrieve/"+id);
+	tick_retrieve_ = event_sub_.subscribe_task_tick(
+        boost::bind(&flexran::app::management::app_firas::process_curl, this, _1),
+        10, 0);
+  }
+  else {
+	std::cout <<"moch mawjouda\n";
+	std::ofstream MyFile("/home/nymphe/log.txt");
+        MyFile << id << " does not exist\n";
+        MyFile.close();
+	 tick_curl_ = event_sub_.subscribe_task_tick(
+      boost::bind(&flexran::app::management::app_firas::process_curl, this, _1),
+        10, 0);
+	
+  }
 }

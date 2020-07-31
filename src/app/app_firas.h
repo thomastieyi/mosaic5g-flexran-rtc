@@ -29,10 +29,11 @@ namespace flexran {
         void tick(uint64_t ms);
 	CURLM* curl_multi_;
 	CURL* curl_create_transfer(const std::string& addr);
-	void trigger_send();
+	void trigger_send(const std::string& addr);
  	void process_curl(uint64_t tick);
 	void trigger_request(const std::string& id);
 	bool disable_curl();
+	
 
      private:
         std::vector<std::string> app_firas_ep_;
@@ -41,6 +42,7 @@ namespace flexran {
 	
 	
 	bs2::connection tick_curl_;
+	bs2::connection tick_retrieve_;
 
       
       };
