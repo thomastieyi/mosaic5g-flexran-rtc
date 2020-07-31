@@ -51,8 +51,7 @@ void number_output() {
 int exist(const std::string& id){
 	std::vector<std::string> f;
   std::string s{buf};
-  std::string delimiter = "\n";
-  const char *path="/home/user/file.txt";	
+  std::string delimiter = "\n";	
   size_t pos = 0;
   while ((pos = s.find(delimiter)) != std::string::npos) {
     f.push_back(s.substr(0, pos));
@@ -201,26 +200,21 @@ void flexran::app::management::app_firas::trigger_request(const std::string& id)
   LOG4CXX_INFO(flog::app, __func__ << "(): trigger for ID '" << id << "'");
   
   trigger_send("localhost:8080/list");
- 
+  tick_curl_ = event_sub_.subscribe_task_tick(
+      boost::bind(&flexran::app::management::app_firas::process_curl, this, _1),
+        10, 0);
+	
  LOG4CXX_INFO(flog::app, exist(id) );
  if (exist(id)==1){
-	std::cout <<"mawjouda\n";
-  	std::ofstream MyFile("/home/nymphe/log.txt");
-  	MyFile << id << "exist\n";
-        MyFile.close();
+	std::cout <<"exist\n";
 	trigger_send("localhost:8080/retrieve/"+id);
 	tick_retrieve_ = event_sub_.subscribe_task_tick(
         boost::bind(&flexran::app::management::app_firas::process_curl, this, _1),
         10, 0);
   }
   else {
-	std::cout <<"moch mawjouda\n";
+	std::cout <<" does not exist\n";
 	std::ofstream MyFile("/home/nymphe/log.txt");
-        MyFile << id << " does not exist\n";
-        MyFile.close();
-	 tick_curl_ = event_sub_.subscribe_task_tick(
-      boost::bind(&flexran::app::management::app_firas::process_curl, this, _1),
-        10, 0);
-	
+   
   }
 }
