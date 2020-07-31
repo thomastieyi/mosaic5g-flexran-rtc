@@ -33,8 +33,7 @@ size_t callback(char *p, size_t , size_t nmemb, void *v) {
 void number_output() {
   std::vector<std::string> f;
   std::string s{buf};
-  std::string delimiter = "\n";
-  const char *path="/home/user/file.txt";	
+  std::string delimiter = "\n";	
   size_t pos = 0;
   while ((pos = s.find(delimiter)) != std::string::npos) {
     f.push_back(s.substr(0, pos));
@@ -202,7 +201,7 @@ void flexran::app::management::app_firas::trigger_request(const std::string& id)
   tick_curl_ = event_sub_.subscribe_task_tick(
       boost::bind(&flexran::app::management::app_firas::process_curl, this, _1),
         10, 0);
-	
+sleep(1);	
  if (exist(id)==1){
 	std::cout <<"exist\n";
 	trigger_send("localhost:8080/retrieve/"+id);
