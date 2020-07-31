@@ -166,7 +166,7 @@ void flexran::app::management::app_firas::process_curl(uint64_t tick)
      curl_easy_cleanup(e);
      
  
-    number_output();	
+    //number_output();	
      
    }
   } while (m);
@@ -183,7 +183,7 @@ void flexran::app::management::app_firas::tick(uint64_t ms)
  // LOG4CXX_INFO(flog::app, "Handshaking" );
  
   
-// trigger_send("localhost:8080/list");
+ //trigger_send("localhost:8080/list");
  /*tick_curl_ = event_sub_.subscribe_task_tick(
       boost::bind(&flexran::app::management::app_firas::process_curl, this, _1),
         10, 0);	*/
@@ -198,13 +198,11 @@ bool flexran::app::management::app_firas::disable_curl()
 void flexran::app::management::app_firas::trigger_request(const std::string& id)
 { 
   LOG4CXX_INFO(flog::app, __func__ << "(): trigger for ID '" << id << "'");
-  
   trigger_send("localhost:8080/list");
   tick_curl_ = event_sub_.subscribe_task_tick(
       boost::bind(&flexran::app::management::app_firas::process_curl, this, _1),
         10, 0);
 	
- LOG4CXX_INFO(flog::app, exist(id) );
  if (exist(id)==1){
 	std::cout <<"exist\n";
 	trigger_send("localhost:8080/retrieve/"+id);
@@ -215,6 +213,6 @@ void flexran::app::management::app_firas::trigger_request(const std::string& id)
   else {
 	std::cout <<" does not exist\n";
 	std::ofstream MyFile("/home/nymphe/log.txt");
-   
   }
 }
+
