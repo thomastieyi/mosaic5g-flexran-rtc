@@ -26,7 +26,7 @@ namespace flexran {
 	~app_firas();
 	bool add_endpoint(const std::string& ep);
 	
-        void tick(uint64_t ms);
+        //void tick(uint64_t ms);
 	CURLM* curl_multi_;
 	CURL* curl_create_transfer(const std::string& addr);
 	void trigger_send(const std::string& addr);
