@@ -32,8 +32,7 @@ size_t callback(char *p, size_t , size_t nmemb, void *v) {
 	return nmemb; // if buffer exceeded, reduced nmemb will trigger error in libcurl
 }
 
-bool number_output(const std::string& id) {
-	//LOG4CXX_INFO(flog::app, id << " ahla\n" ); 
+bool number_output(const std::string& id) { 
 	std::vector<std::string> f;
 	std::string s{buf};
 	std::string delimiter = "\n";	
