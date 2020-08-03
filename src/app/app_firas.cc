@@ -30,9 +30,10 @@ size_t callback(char *p, size_t , size_t nmemb, void *v) {
             << "B, total " << bufpos << "B\n";
   return nmemb; // if buffer exceeded, reduced nmemb will trigger error in libcurl
 }
-void number_output() {
+int number_output(const std::string& id) {
   std::vector<std::string> f;
   std::string s{buf};
+  int a=0;
   std::string delimiter = "\n";	
   size_t pos = 0;
   while ((pos = s.find(delimiter)) != std::string::npos) {
@@ -43,28 +44,22 @@ void number_output() {
   
   for (const std::string& si : f) {
     std::cout << i << ": " << si << "\n";
+    if(id ==si) { a=1;
+	}	
     i++;
   }
+ 
+  if (a==1){
+	std::cout <<"exist\n";	
+  }
+ 
+   if (a==0) {
+	std::cout <<" does not exist\n";
+   }	
   bufpos = 0;
+  return a;
 }
-int exist(const std::string& id){
-	std::vector<std::string> f;
-  std::string s{buf};
-  std::string delimiter = "\n";	
-  size_t pos = 0;
-  while ((pos = s.find(delimiter)) != std::string::npos) {
-    f.push_back(s.substr(0, pos));
-    s.erase(0, pos + delimiter.length());
-  }
-   int i = 0;
-  
-  for (const std::string& si : f) {
-     if(id ==si) {
-	return 1;}	
-    i++;
-  } 
-return 0;
-  }
+
 
 
 
@@ -172,6 +167,62 @@ void flexran::app::management::app_firas::process_curl(uint64_t tick)
 
  
 }
+void flexran::app::management::app_firas::process_list(uint64_t tick,const std::string& id)
+{ 
+  _unused(tick);
+  CURLMsg *m;
+  int k;
+  
+
+  int n;
+  /* from documentation for curl_multi_perform(): "This function does not
+   * require that there actually is any data available for reading or that data
+   * can be written, it can be called just in case." */
+  CURLMcode mc = curl_multi_perform(curl_multi_, &n);
+  if (mc != CURLM_OK) {
+    LOG4CXX_ERROR(flog::app, "erreur");
+	disable_curl(); 
+  }
+ 
+ 
+  do {
+   /*Ask the curl_multi_ which is a multi handle if there are a message from the individual transfers, 
+    *and if this message is CURLMSG_DONE, we remove the easy_handle from the multi_handle */	
+   m = curl_multi_info_read(curl_multi_, &k); 
+   if (m && m->msg == CURLMSG_DONE) {
+     CURL *e = m->easy_handle;
+     long code = 0;
+     	
+     curl_easy_getinfo(e, CURLINFO_RESPONSE_CODE, &code);
+    if (code != 200) /* if it is not ok */ 
+	{bufpos = 0;
+	curl_multi_remove_handle(curl_multi_, e);
+ 	
+     
+	return ;
+	
+ 		}    
+     curl_multi_remove_handle(curl_multi_, &e);
+ 	
+     curl_easy_cleanup(e);
+     
+  int b=0;
+  b=number_output(id);
+   
+    if (b==1){
+	 trigger_send("localhost:8080/retrieve/"+id);
+	 tick_retrieve_ = event_sub_.subscribe_task_tick(
+         boost::bind(&flexran::app::management::app_firas::process_curl, this, _1),
+        10, 0);
+  }
+   
+	
+  }
+  } while (m);
+
+ 
+}
+
 
 
 
@@ -199,19 +250,9 @@ void flexran::app::management::app_firas::trigger_request(const std::string& id)
   LOG4CXX_INFO(flog::app, __func__ << "(): trigger for ID '" << id << "'");
   trigger_send("localhost:8080/list");
   tick_curl_ = event_sub_.subscribe_task_tick(
-      boost::bind(&flexran::app::management::app_firas::process_curl, this, _1),
+      boost::bind(&flexran::app::management::app_firas::process_list, this, _1,id),
         10, 0);
-sleep(1);	
- if (exist(id)==1){
-	std::cout <<"exist\n";
-	trigger_send("localhost:8080/retrieve/"+id);
-	tick_retrieve_ = event_sub_.subscribe_task_tick(
-        boost::bind(&flexran::app::management::app_firas::process_curl, this, _1),
-        10, 0);
-  }
-  else {
-	std::cout <<" does not exist\n";
-	std::ofstream MyFile("/home/nymphe/log.txt");
-  }
+	
+ 
 }
 

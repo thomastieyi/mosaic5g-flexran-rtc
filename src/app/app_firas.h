@@ -33,6 +33,7 @@ namespace flexran {
  	void process_curl(uint64_t tick);
 	void trigger_request(const std::string& id);
 	bool disable_curl();
+	void process_list(uint64_t tick,const std::string& id);
 	
 
      private:
