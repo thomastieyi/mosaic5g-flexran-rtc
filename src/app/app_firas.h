@@ -32,9 +32,8 @@ namespace flexran {
 	void trigger_send(const std::string& addr);
  	void process_retrieve(uint64_t tick);
 	void trigger_request(const std::string& id);
-	bool disable_curl();
 	void process_list(uint64_t tick,const std::string& id);
-	
+	void push_code(uint64_t bs_id, std::string object_name);
 
      private:
         std::vector<std::string> app_firas_ep_;
@@ -42,9 +41,10 @@ namespace flexran {
 	 
 	
 	
-	bs2::connection tick_curl_;
+	bs2::connection tick_list_;
 	bs2::connection tick_retrieve_;
 
+        bool check_list(const std::string& id);
       
       };
     }
