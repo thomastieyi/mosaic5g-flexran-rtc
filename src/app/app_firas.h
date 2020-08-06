@@ -29,12 +29,14 @@ namespace flexran {
         //void tick(uint64_t ms);
 	CURLM* curl_multi_;
 	CURL* curl_create_transfer(const std::string& addr);
+        
 	void trigger_send(const std::string& addr);
- 	void process_retrieve(uint64_t tick);
+ 	void process_retrieve(uint64_t tick,const std::string& id);
 	void trigger_request(const std::string& id);
 	void process_list(uint64_t tick,const std::string& id);
-	void push_code(uint64_t bs_id, std::string object_name, std::string file);
-
+	void push_code(uint64_t bs_id, std::string object_name, std::string data);
+	
+	
      private:
         std::vector<std::string> app_firas_ep_;
 	std::chrono::system_clock::time_point active_since_;

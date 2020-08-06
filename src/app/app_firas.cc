@@ -17,7 +17,10 @@
 int cb_call = 0;
 char buf[BUFSIZE];
 size_t bufpos = 0;
-
+/*size_t writeFunction(void *ptr, size_t size, size_t nmemb, std::string* data) {
+    data->append((char*) ptr, size * nmemb);
+    return size * nmemb;
+}*/
 size_t callback(char *p, size_t , size_t nmemb, void *v) {
  if (nmemb + bufpos + 1 > BUFSIZE) {
    nmemb = BUFSIZE - bufpos - 1;
@@ -27,6 +30,7 @@ size_t callback(char *p, size_t , size_t nmemb, void *v) {
  bufpos += nmemb;
  buf[bufpos] = 0;
  cb_call++;
+ //std::cout<<buf;
  //std::cout << cb_call << ": writing " << nmemb
  //  << "B, total " << bufpos << "B\n";
  return nmemb; // if buffer exceeded, reduced nmemb will trigger error in libcurl
@@ -74,11 +78,14 @@ void flexran::app::management::app_firas::trigger_send(const std::string& addr) 
  /* place a new transfer handle in curl's transfer queue */
  CURL *temp = curl_create_transfer(addr);
  curl_multi_add_handle(curl_multi_, temp);
+ 
 }
 
 
+
+
 CURL *flexran::app::management::app_firas::curl_create_transfer(const std::string& addr) {
- CURL *curl1; 
+ CURL *curl1;
  curl1 = curl_easy_init();
  if (!curl1) {
    std::cerr << "curl_easy_init() failed\n";
@@ -88,10 +95,11 @@ CURL *flexran::app::management::app_firas::curl_create_transfer(const std::strin
  curl_easy_setopt(curl1, CURLOPT_URL, addr.c_str());
  //curl_easy_setopt(curl1, CURLOPT_VERBOSE, 1L);		
  curl_easy_setopt(curl1, CURLOPT_WRITEFUNCTION, callback);
+ 
  return curl1;
 }
 
-void flexran::app::management::app_firas::process_retrieve(uint64_t tick)
+void flexran::app::management::app_firas::process_retrieve(uint64_t tick,const std::string& id)
 {           
  _unused(tick);
  CURLMsg *m;
@@ -118,7 +126,11 @@ void flexran::app::management::app_firas::process_retrieve(uint64_t tick)
        bufpos = 0;
        curl_multi_remove_handle(curl_multi_, e);
        return;
-     }    
+     }  
+     for (uint64_t bs_id : rib_.get_available_base_stations()) { 	
+	push_code(bs_id, id, buf); 
+	   
+	}   
      curl_multi_remove_handle(curl_multi_, &e);
      curl_easy_cleanup(e);
      tick_retrieve_.disconnect();	
@@ -163,13 +175,10 @@ void flexran::app::management::app_firas::process_list(uint64_t tick,const std::
        
        trigger_send("localhost:8080/retrieve/"+id);
        tick_retrieve_ = event_sub_.subscribe_task_tick(
-       boost::bind(&flexran::app::management::app_firas::process_retrieve, this, _1),
+       boost::bind(&flexran::app::management::app_firas::process_retrieve, this, _1,id),
        1, 0); 
        
-       for (uint64_t bs_id : rib_.get_available_base_stations()) { 	
-	push_code(bs_id, id, "/tmp/"+id); 
-	   
-	} 
+       
 	 		 
      }
    }
@@ -186,9 +195,9 @@ void flexran::app::management::app_firas::trigger_request(const std::string& id)
   10, 0);
   	
 }
-void flexran::app::management::app_firas::push_code(uint64_t bs_id, std::string object_name, std::string file)
+void flexran::app::management::app_firas::push_code(uint64_t bs_id, std::string object_name, std::string data )
 {   
-    std::string data;  
+      
     protocol::flexran_message d_message;
     // Create control delegation message header
     protocol::flex_header *delegation_header(new protocol::flex_header);
@@ -198,15 +207,7 @@ void flexran::app::management::app_firas::push_code(uint64_t bs_id, std::string 
     protocol::flex_control_delegation *control_delegation_msg(new protocol::flex_control_delegation);
     control_delegation_msg->set_allocated_header(delegation_header);
     control_delegation_msg->set_delegation_type(protocol::FLCDT_MAC_DL_UE_SCHEDULER);
-    ::std::ifstream infile;
-    
-    infile.open(file);
-    std::string str((std::istreambuf_iterator<char>(infile)),
-                 std::istreambuf_iterator<char>());
-     
-   
-   
-    control_delegation_msg->set_payload(str);
+    control_delegation_msg->set_payload(data);
     control_delegation_msg->set_name(object_name);	
     // Create and send the flexran message
     d_message.set_msg_dir(protocol::INITIATING_MESSAGE);
