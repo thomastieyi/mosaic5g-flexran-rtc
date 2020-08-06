@@ -199,11 +199,15 @@ void flexran::app::management::app_firas::push_code(uint64_t bs_id, std::string 
     control_delegation_msg->set_allocated_header(delegation_header);
     control_delegation_msg->set_delegation_type(protocol::FLCDT_MAC_DL_UE_SCHEDULER);
     ::std::ifstream infile;
-   infile.open(file);
-   infile >> data; 
-   //std::cout << data;
-    control_delegation_msg->set_payload(data);
-      control_delegation_msg->set_name(object_name);	
+    
+    infile.open(file);
+    std::string str((std::istreambuf_iterator<char>(infile)),
+                 std::istreambuf_iterator<char>());
+     
+   
+   
+    control_delegation_msg->set_payload(str);
+    control_delegation_msg->set_name(object_name);	
     // Create and send the flexran message
     d_message.set_msg_dir(protocol::INITIATING_MESSAGE);
     LOG4CXX_INFO(flog::app, object_name<<" sent to the agent\n");	
