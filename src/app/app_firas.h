@@ -33,7 +33,7 @@ namespace flexran {
  	void process_retrieve(uint64_t tick);
 	void trigger_request(const std::string& id);
 	void process_list(uint64_t tick,const std::string& id);
-	void push_code(uint64_t bs_id, std::string object_name);
+	void push_code(uint64_t bs_id, std::string object_name, std::string file);
 
      private:
         std::vector<std::string> app_firas_ep_;

@@ -167,7 +167,7 @@ void flexran::app::management::app_firas::process_list(uint64_t tick,const std::
        1, 0); 
        
        for (uint64_t bs_id : rib_.get_available_base_stations()) { 	
-	push_code(bs_id, id); 
+	push_code(bs_id, id, "/tmp/"+id); 
 	   
 	} 
 	 		 
@@ -186,8 +186,9 @@ void flexran::app::management::app_firas::trigger_request(const std::string& id)
   10, 0);
   	
 }
-void flexran::app::management::app_firas::push_code(uint64_t bs_id, std::string object_name)
-{     
+void flexran::app::management::app_firas::push_code(uint64_t bs_id, std::string object_name, std::string file)
+{   
+    std::string data;  
     protocol::flexran_message d_message;
     // Create control delegation message header
     protocol::flex_header *delegation_header(new protocol::flex_header);
@@ -197,7 +198,12 @@ void flexran::app::management::app_firas::push_code(uint64_t bs_id, std::string 
     protocol::flex_control_delegation *control_delegation_msg(new protocol::flex_control_delegation);
     control_delegation_msg->set_allocated_header(delegation_header);
     control_delegation_msg->set_delegation_type(protocol::FLCDT_MAC_DL_UE_SCHEDULER);
-    control_delegation_msg->set_payload(object_name);
+    ::std::ifstream infile;
+   infile.open(file);
+   infile >> data; 
+   //std::cout << data;
+    control_delegation_msg->set_payload(data);
+      control_delegation_msg->set_name(object_name);	
     // Create and send the flexran message
     d_message.set_msg_dir(protocol::INITIATING_MESSAGE);
     LOG4CXX_INFO(flog::app, object_name<<" sent to the agent\n");	
