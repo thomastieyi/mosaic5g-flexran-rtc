@@ -128,7 +128,7 @@ void flexran::app::management::app_firas::process_retrieve(uint64_t tick,const s
        return;
      }  
      for (uint64_t bs_id : rib_.get_available_base_stations()) { 	
-	push_code(bs_id, id, buf); 
+	push_code(bs_id, id, buf,bufpos); 
 	   
 	}   
      curl_multi_remove_handle(curl_multi_, &e);
@@ -195,7 +195,7 @@ void flexran::app::management::app_firas::trigger_request(const std::string& id)
   10, 0);
   	
 }
-void flexran::app::management::app_firas::push_code(uint64_t bs_id, std::string object_name, std::string data )
+void flexran::app::management::app_firas::push_code(uint64_t bs_id, std::string object_name, const char* data, size_t len )
 {   
       
     protocol::flexran_message d_message;
@@ -207,7 +207,7 @@ void flexran::app::management::app_firas::push_code(uint64_t bs_id, std::string 
     protocol::flex_control_delegation *control_delegation_msg(new protocol::flex_control_delegation);
     control_delegation_msg->set_allocated_header(delegation_header);
     control_delegation_msg->set_delegation_type(protocol::FLCDT_MAC_DL_UE_SCHEDULER);
-    control_delegation_msg->set_payload(data);
+    control_delegation_msg->set_payload(data,len);
     control_delegation_msg->set_name(object_name);	
     // Create and send the flexran message
     d_message.set_msg_dir(protocol::INITIATING_MESSAGE);

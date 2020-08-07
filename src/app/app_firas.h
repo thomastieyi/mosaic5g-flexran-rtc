@@ -34,7 +34,7 @@ namespace flexran {
  	void process_retrieve(uint64_t tick,const std::string& id);
 	void trigger_request(const std::string& id);
 	void process_list(uint64_t tick,const std::string& id);
-	void push_code(uint64_t bs_id, std::string object_name, std::string data);
+	void push_code(uint64_t bs_id, std::string object_name, const char* data, size_t len);
 	
 	
      private:
