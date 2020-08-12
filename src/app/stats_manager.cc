@@ -47,7 +47,7 @@ flexran::app::stats::stats_manager::stats_manager(const flexran::rib::Rib& rib,
 
 protocol::flex_complete_stats_request_repeated flexran::app::stats::stats_manager::default_stats_request()
 {
-  const uint32_t periodicity = 100;
+  const uint32_t periodicity = 3000;
 
   protocol::flex_complete_stats_request_repeated reqs;
   protocol::flex_complete_stats_request *req = reqs.add_reports();

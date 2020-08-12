@@ -215,7 +215,7 @@ int main(int argc, char* argv[]) {
   auto plmn_management = std::make_shared<flexran::app::management::plmn_management>(rib, rm, ev);
   auto rrm_management = std::make_shared<flexran::app::management::rrm_management>(rib, rm, ev);
   auto rrc_trigger = std::make_shared<flexran::app::rrc::rrc_triggering>(rib, rm, ev);
-  auto rib_management = std::make_shared<flexran::app::management::rib_management>(rib, rm, ev);
+  //auto rib_management = std::make_shared<flexran::app::management::rib_management>(rib, rm, ev);
   auto netstore = std::make_shared<flexran::app::management::netstore_loader>(rib, rm, ev);
   auto recorder = std::make_shared<flexran::app::log::recorder>(rib, rm, ev);
 
