@@ -349,12 +349,24 @@ void flexran::app::management::rrm_management::auto_ue_slice_association(
   if (!ret)
     throw std::invalid_argument("error while parsing regex list: " + error_reason);
 
-  if (dl_slice_id >= 0)
+  if (dl_slice_id >= 0) {
+    dl_ue_slice_.erase(
+        std::remove_if(dl_ue_slice_.begin(), dl_ue_slice_.end(),
+                       [dl_slice_id] (std::pair<std::regex, uint32_t> p) {
+                         return (uint32_t) dl_slice_id == p.second;
+                       }));
     LOG4CXX_INFO(flog::app, "Auto-associating to DL Slice ID " << dl_slice_id
         << ": UEs matching any in " << policy);
-  if (ul_slice_id >= 0)
+  }
+  if (ul_slice_id >= 0) {
+    ul_ue_slice_.erase(
+        std::remove_if(ul_ue_slice_.begin(), ul_ue_slice_.end(),
+                       [ul_slice_id] (std::pair<std::regex, uint32_t> p) {
+                         return (uint32_t) ul_slice_id == p.second;
+                       }));
     LOG4CXX_INFO(flog::app, "Auto-associating to UL Slice ID " << ul_slice_id
         << ": UEs matching any in " << policy);
+  }
 
   protocol::flex_ue_config_reply c;
   for (auto r: regs) {
