@@ -349,12 +349,42 @@ void flexran::app::management::rrm_management::auto_ue_slice_association(
   if (!ret)
     throw std::invalid_argument("error while parsing regex list: " + error_reason);
 
+  if (dl_slice_id >= 0)
+    LOG4CXX_INFO(flog::app, "Auto-associating to DL Slice ID " << dl_slice_id
+        << ": UEs matching any in " << policy);
+  if (ul_slice_id >= 0)
+    LOG4CXX_INFO(flog::app, "Auto-associating to UL Slice ID " << ul_slice_id
+        << ": UEs matching any in " << policy);
+
+  protocol::flex_ue_config_reply c;
   for (auto r: regs) {
     if (dl_slice_id >= 0)
       dl_ue_slice_.emplace_back(r, dl_slice_id);
     if (ul_slice_id >= 0)
       ul_ue_slice_.emplace_back(r, ul_slice_id);
+    for (const protocol::flex_ue_config& ue : rib_.get_bs(bs_id)->get_ue_configs().ue_config()) {
+      if (!ue.has_imsi())
+        continue;
+      if (!std::regex_search(std::to_string(ue.imsi()), r))
+        continue;
+      auto *uec = c.add_ue_config();
+      uec->set_rnti(ue.rnti());
+      if (dl_slice_id >= 0) {
+        uec->set_dl_slice_id(dl_slice_id);
+        LOG4CXX_INFO(flog::app, "auto-associate RNTI " << ue.rnti()
+            << " IMSI " << ue.imsi()
+            << " to UL Slice ID " << dl_slice_id);
+      }
+      if (ul_slice_id >= 0) {
+        uec->set_ul_slice_id(ul_slice_id);
+        LOG4CXX_INFO(flog::app, "auto-associate RNTI " << ue.rnti()
+            << " IMSI " << ue.imsi()
+            << " to UL Slice ID " << ul_slice_id);
+      }
+    }
   }
+  if (c.ue_config_size() > 0)
+    push_ue_config_reconfiguration(bs_id, c);
 }
 
 void flexran::app::management::rrm_management::ue_add_update_slice_assoc(
