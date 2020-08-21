@@ -143,6 +143,7 @@ void flexran::app::management::netstore_loader::process_retrieve(
       }
       for (uint64_t bs_id : rib_.get_available_base_stations()) {
         push_code(bs_id, id, buf, bufpos, protocol::FLCDT_AGENT_CONTROL_APP);
+        control_app(bs_id, id, "start");
       }
       bufpos = 0;
       curl_multi_remove_handle(curl_multi_, &e);
@@ -243,4 +244,29 @@ void flexran::app::management::netstore_loader::push_code(
         << ": name " << object_name << ", payload size " << l);
   d_message.set_allocated_control_delegation_msg(control_delegation_msg);
   req_manager_.send_message(bs_id, d_message);
+}
+
+void flexran::app::management::netstore_loader::control_app(
+    uint64_t bs_id,
+    std::string object_name,
+    std::string action)
+{
+  protocol::flexran_message m;
+  m.set_msg_dir(protocol::INITIATING_MESSAGE);
+  protocol::flex_header *delegation_header(new protocol::flex_header);
+  delegation_header->set_type(protocol::FLPT_DELEGATE_CONTROL);
+  delegation_header->set_version(0);
+  delegation_header->set_xid(0);
+  protocol::flex_agent_reconfiguration *reconfiguration(
+      new protocol::flex_agent_reconfiguration);
+  protocol::flex_agent_reconfiguration_system *sys = reconfiguration->add_systems();
+  sys->set_system("app");
+  protocol::flex_agent_reconfiguration_subsystem *sub = sys->add_subsystems();
+  sub->set_name(object_name);
+  sub->set_behavior(action);
+  m.set_allocated_agent_reconfiguration_msg(reconfiguration);
+  LOG4CXX_INFO(flog::app, "send to BS " << bs_id
+      << ": reconfiguration message for app " << object_name
+      << " with action " << action);
+  req_manager_.send_message(bs_id, m);
 }

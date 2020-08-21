@@ -56,6 +56,9 @@ namespace flexran {
                       const char *data,
                       size_t len,
                       protocol::flex_control_delegation_type type);
+       void control_app(uint64_t bs_id,
+                        std::string object_name,
+                        std::string action);
 
       private:
        bs2::connection tick_list_;
