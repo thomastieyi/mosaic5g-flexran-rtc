@@ -44,6 +44,10 @@ namespace flexran {
 
       void app_dl_trigger(const Pistache::Rest::Request &request,
                           Pistache::Http::ResponseWriter response);
+      void app_rm_trigger(const Pistache::Rest::Request &request,
+                          Pistache::Http::ResponseWriter response);
+      void app_conf_trigger(const Pistache::Rest::Request &request,
+                            Pistache::Http::ResponseWriter response);
 
      private:
       std::shared_ptr<flexran::app::management::netstore_loader> netstore;

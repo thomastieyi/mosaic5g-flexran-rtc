@@ -50,6 +50,8 @@ namespace flexran {
        void trigger_send(const std::string& addr);
        void process_retrieve(uint64_t tick, const std::string& id);
        void trigger_request(const std::string& id);
+       void trigger_app_stop(const std::string& id);
+       void trigger_app_reconfig(const std::string &id, const std::string& policy);
        void process_list(uint64_t tick, const std::string& id);
        void push_code(uint64_t bs_id,
                       std::string object_name,
@@ -58,13 +60,15 @@ namespace flexran {
                       protocol::flex_control_delegation_type type);
        void control_app(uint64_t bs_id,
                         std::string object_name,
-                        std::string action);
+                        std::string action,
+                        const ::google::protobuf::Map<std::string, protocol::flex_agent_reconfiguration_param > *params);
 
       private:
        bs2::connection tick_list_;
        bs2::connection tick_retrieve_;
 
        bool check_list(const std::string& id);
+
       };
     }
   }

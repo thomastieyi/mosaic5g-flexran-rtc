@@ -33,6 +33,12 @@ void flexran::north_api::netstore_loader_calls::register_calls(Pistache::Rest::D
   auto netstore = desc.path("/netstore");
   netstore.route(desc.get("/app/:id"), "Trigger app download")
       .bind(&flexran::north_api::netstore_loader_calls::app_dl_trigger, this);
+
+  netstore.route(desc.del("/app/:id"), "Remove app from agent")
+          .bind(&flexran::north_api::netstore_loader_calls::app_rm_trigger, this);
+
+  netstore.route(desc.post("/app/:id"), "Reconfigure app at agent")
+          .bind(&flexran::north_api::netstore_loader_calls::app_conf_trigger, this);
 }
 
 void flexran::north_api::netstore_loader_calls::app_dl_trigger(
@@ -42,4 +48,30 @@ void flexran::north_api::netstore_loader_calls::app_dl_trigger(
   const std::string id = request.param(":id").as<std::string>();
   netstore->trigger_request(id);
   response.send(Pistache::Http::Code::Ok, "requested '" + id + "'\n");
+}
+
+void flexran::north_api::netstore_loader_calls::app_rm_trigger(
+    const Pistache::Rest::Request& request,
+    Pistache::Http::ResponseWriter response)
+{
+  const std::string id = request.param(":id").as<std::string>();
+  netstore->trigger_app_stop(id);
+  response.send(Pistache::Http::Code::Ok, "requested removal of app '" + id + "'\n");
+}
+
+void flexran::north_api::netstore_loader_calls::app_conf_trigger(
+    const Pistache::Rest::Request& request,
+    Pistache::Http::ResponseWriter response)
+{
+  const std::string id = request.param(":id").as<std::string>();
+  std::string policy = request.body();
+  try {
+    netstore->trigger_app_reconfig(id, policy);
+  } catch (const std::invalid_argument& e) {
+    response.send(Pistache::Http::Code::Bad_Request,
+        "{ \"error:\": \"" + std::string(e.what()) + "\"}\n", MIME(Application, Json));
+    return;
+  }
+
+  response.send(Pistache::Http::Code::Ok, "requested reconfiguration of app '" + id + "'\n");
 }

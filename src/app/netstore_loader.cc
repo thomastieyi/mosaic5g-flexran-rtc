@@ -25,6 +25,7 @@
 #include "rt_controller_common.h"
 #include "netstore_loader.h"
 #include "flexran_log.h"
+#include <google/protobuf/util/json_util.h>
 
 #define BUFSIZE 10000000
 int cb_call = 0;
@@ -143,7 +144,7 @@ void flexran::app::management::netstore_loader::process_retrieve(
       }
       for (uint64_t bs_id : rib_.get_available_base_stations()) {
         push_code(bs_id, id, buf, bufpos, protocol::FLCDT_AGENT_CONTROL_APP);
-        control_app(bs_id, id, "start");
+        control_app(bs_id, id, "start", NULL);
       }
       bufpos = 0;
       curl_multi_remove_handle(curl_multi_, &e);
@@ -218,6 +219,34 @@ void flexran::app::management::netstore_loader::trigger_request(
       10,
       0);
 }
+
+void flexran::app::management::netstore_loader::trigger_app_stop(
+    const std::string &id)
+{
+  for (uint64_t bs_id : rib_.get_available_base_stations()) {
+    control_app(bs_id, id, "stop", NULL);
+    /* pushing a null object will trigger the file to be deleted */
+    push_code(bs_id, id, NULL, 0, protocol::FLCDT_AGENT_CONTROL_APP);
+  }
+}
+
+void flexran::app::management::netstore_loader::trigger_app_reconfig(
+    const std::string &id,
+    const std::string& policy)
+{
+  protocol::flex_agent_reconfiguration_subsystem sub;
+  auto ret = google::protobuf::util::JsonStringToMessage(policy, &sub,
+      google::protobuf::util::JsonParseOptions());
+  if (ret != google::protobuf::util::Status::OK) {
+    LOG4CXX_ERROR(flog::app, "error while parsing ProtoBuf message:" << ret.ToString());
+    throw std::invalid_argument("Protobuf parser error");
+  }
+
+  for (uint64_t bs_id : rib_.get_available_base_stations()) {
+    control_app(bs_id, id, "reconfig", &sub.params());
+  }
+}
+
 void flexran::app::management::netstore_loader::push_code(
     uint64_t bs_id,
     std::string object_name,
@@ -235,7 +264,8 @@ void flexran::app::management::netstore_loader::push_code(
       new protocol::flex_control_delegation);
   control_delegation_msg->set_allocated_header(delegation_header);
   control_delegation_msg->set_delegation_type(type);
-  control_delegation_msg->set_payload(data, len);
+  if (data && len > 0)
+    control_delegation_msg->set_payload(data, len);
   control_delegation_msg->set_name(object_name);
   // Create and send the flexran message
   d_message.set_msg_dir(protocol::INITIATING_MESSAGE);
@@ -249,7 +279,8 @@ void flexran::app::management::netstore_loader::push_code(
 void flexran::app::management::netstore_loader::control_app(
     uint64_t bs_id,
     std::string object_name,
-    std::string action)
+    std::string action,
+    const ::google::protobuf::Map<std::string, protocol::flex_agent_reconfiguration_param > *params)
 {
   protocol::flexran_message m;
   m.set_msg_dir(protocol::INITIATING_MESSAGE);
@@ -264,6 +295,9 @@ void flexran::app::management::netstore_loader::control_app(
   protocol::flex_agent_reconfiguration_subsystem *sub = sys->add_subsystems();
   sub->set_name(object_name);
   sub->set_behavior(action);
+  if (params)
+    for (auto& kv : *params)
+      sub->mutable_params()->insert(kv);
   m.set_allocated_agent_reconfiguration_msg(reconfiguration);
   LOG4CXX_INFO(flog::app, "send to BS " << bs_id
       << ": reconfiguration message for app " << object_name
